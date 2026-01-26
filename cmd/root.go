@@ -76,8 +76,13 @@ This is a convenience alias for 'hostodo auth login'.
 Example:
   hostodo login`,
 	Run: func(cmd *cobra.Command, args []string) {
-		auth.AuthCmd.SetArgs([]string{"login"})
-		auth.AuthCmd.Execute()
+		// Find and execute the login subcommand directly
+		loginCmd, _, err := auth.AuthCmd.Find([]string{"login"})
+		if err != nil || loginCmd == nil {
+			fmt.Fprintf(os.Stderr, "Error: login command not found\n")
+			os.Exit(1)
+		}
+		loginCmd.Run(cmd, args)
 	},
 }
 
@@ -92,8 +97,13 @@ This is a convenience alias for 'hostodo auth logout'.
 Example:
   hostodo logout`,
 	Run: func(cmd *cobra.Command, args []string) {
-		auth.AuthCmd.SetArgs([]string{"logout"})
-		auth.AuthCmd.Execute()
+		// Find and execute the logout subcommand directly
+		logoutCmd, _, err := auth.AuthCmd.Find([]string{"logout"})
+		if err != nil || logoutCmd == nil {
+			fmt.Fprintf(os.Stderr, "Error: logout command not found\n")
+			os.Exit(1)
+		}
+		logoutCmd.Run(cmd, args)
 	},
 }
 
@@ -108,8 +118,13 @@ This is a convenience alias for 'hostodo auth whoami'.
 Example:
   hostodo whoami`,
 	Run: func(cmd *cobra.Command, args []string) {
-		auth.AuthCmd.SetArgs([]string{"whoami"})
-		auth.AuthCmd.Execute()
+		// Find and execute the whoami subcommand directly
+		whoamiCmd, _, err := auth.AuthCmd.Find([]string{"whoami"})
+		if err != nil || whoamiCmd == nil {
+			fmt.Fprintf(os.Stderr, "Error: whoami command not found\n")
+			os.Exit(1)
+		}
+		whoamiCmd.Run(cmd, args)
 	},
 }
 

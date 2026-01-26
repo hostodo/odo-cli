@@ -10,17 +10,18 @@ import (
 // RevokeSession revokes the current CLI session on the server
 // Note: This is a best-effort call - we still clear local token even if server call fails
 func (c *Client) RevokeSession() error {
-	// Call logout endpoint to revoke server-side session
-	// The backend will invalidate the token hash
-	logoutReq := map[string]bool{"logout": true}
-	resp, err := c.Post("/v1/auth/", logoutReq)
+	// Call DELETE /v1/cli-sessions/current/ to revoke server-side session
+	// The backend identifies the session from the Bearer token
+	resp, err := c.Delete("/v1/cli-sessions/current/")
 	if err != nil {
 		// Log but don't fail - local cleanup will still happen
 		return fmt.Errorf("server revocation failed: %w", err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode >= 400 {
+	// 204 No Content is success
+	// 404 means session already revoked or expired (also fine)
+	if resp.StatusCode != 204 && resp.StatusCode != 404 {
 		return fmt.Errorf("server returned error %d", resp.StatusCode)
 	}
 

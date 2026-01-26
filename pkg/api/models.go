@@ -102,6 +102,21 @@ type PowerControlRequest struct {
 	Action string `json:"action"` // "start", "stop", "reboot"
 }
 
+// CLISession represents an active CLI session
+type CLISession struct {
+	ID         int    `json:"id"`
+	DeviceName string `json:"device_name"`
+	CreatedAt  string `json:"created_at"`
+	LastUsedAt string `json:"last_used_at"`
+	IPAddress  string `json:"ip_address"`
+}
+
+// CLISessionsResponse is the paginated response for sessions
+type CLISessionsResponse struct {
+	Results []CLISession `json:"results"`
+	Count   int          `json:"count"`
+}
+
 // ErrorResponse represents an API error
 type ErrorResponse struct {
 	Detail  string `json:"detail"`
