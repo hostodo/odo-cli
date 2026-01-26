@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"os/signal"
 	"strings"
@@ -65,12 +66,25 @@ var (
 		Bold(true)
 )
 
+// buildVerificationURL appends user_code as query parameter to verification URI
+func buildVerificationURL(baseURL, userCode string) string {
+	u, err := url.Parse(baseURL)
+	if err != nil {
+		return baseURL // Fallback to base URL on parse error
+	}
+
+	q := u.Query()
+	q.Set("code", userCode)
+	u.RawQuery = q.Encode()
+
+	return u.String()
+}
+
 func runLogin(cmd *cobra.Command, args []string) {
-	// Check if already authenticated
+	// Check if already authenticated - inform user but allow re-auth
 	if auth.IsAuthenticated() {
-		fmt.Println(warningStyle.Render("You are already logged in."))
-		fmt.Println("Run 'hostodo logout' first if you want to re-authenticate.")
-		return
+		fmt.Println(warningStyle.Render("⚠ Already logged in. Continuing will replace your current session."))
+		fmt.Println()
 	}
 
 	// Load config for API URL
@@ -100,9 +114,12 @@ func runLogin(cmd *cobra.Command, args []string) {
 	// Display the user code prominently using ASCII art
 	displayUserCode(deviceCode.UserCode)
 
-	// Show verification URL
+	// Build verification URL with code pre-populated
+	verificationURL := buildVerificationURL(deviceCode.VerificationURI, formatCodeWithDash(deviceCode.UserCode))
+
+	// Show verification URL (with code)
 	fmt.Println()
-	fmt.Printf("  Visit: %s\n", urlStyle.Render(deviceCode.VerificationURI))
+	fmt.Printf("  Visit: %s\n", urlStyle.Render(verificationURL))
 	fmt.Println()
 
 	// Copy code to clipboard
@@ -113,8 +130,8 @@ func runLogin(cmd *cobra.Command, args []string) {
 		fmt.Println(warningStyle.Render("  ⚠") + " Could not copy to clipboard")
 	}
 
-	// Open browser
-	if err := browser.OpenURL(deviceCode.VerificationURI); err != nil {
+	// Open browser (with code in URL)
+	if err := browser.OpenURL(verificationURL); err != nil {
 		fmt.Println(warningStyle.Render("  ⚠") + " Could not open browser automatically")
 		fmt.Printf("  Please visit the URL above manually\n")
 	} else {
