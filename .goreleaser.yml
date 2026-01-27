@@ -73,7 +73,8 @@ changelog:
 
 # Homebrew formula (brews still valid for CLI tools despite deprecation warning)
 brews:
-  - repository:
+  - name: hostodo
+    repository:
       owner: hostodo
       name: homebrew-tap
       token: "{{ .Env.TAP_GITHUB_TOKEN }}"
