@@ -10,8 +10,10 @@ import (
 )
 
 var (
-	// Version information (will be set during build)
-	Version = "0.2.0"
+	// Version information (will be set during build via ldflags)
+	Version = "dev"
+	Commit  = "none"
+	Date    = "unknown"
 	cfgFile string
 )
 
@@ -50,6 +52,9 @@ func Execute() error {
 
 func init() {
 	cobra.OnInitialize(initConfig)
+
+	// Set version template
+	rootCmd.SetVersionTemplate(fmt.Sprintf("hostodo version %s (commit: %s, built: %s)\n", Version, Commit, Date))
 
 	// Add subcommands
 	rootCmd.AddCommand(auth.AuthCmd)

@@ -1,38 +1,68 @@
-# Hostodo CLI
-
-A beautiful, interactive command-line interface for managing your Hostodo VPS instances.
-
+# Hostodo CLI [WIP]
 ![Version](https://img.shields.io/badge/version-0.1.0-blue)
 ![Go Version](https://img.shields.io/badge/go-1.24+-00ADD8?logo=go)
 ![License](https://img.shields.io/badge/license-MIT-green)
-
-## ✨ Features
-
-- 🎨 **Beautiful TUI** - Interactive terminal UI powered by [Bubble Tea](https://github.com/charmbracelet/bubbletea)
-- 🔐 **Secure Authentication** - JWT-based authentication with secure local credential storage
-- 📊 **Multiple Output Formats** - Interactive table, JSON, simple table, or detailed views
-- ⚡ **Fast & Lightweight** - Single binary with no dependencies
-- 🎯 **Power Control** - Start, stop, and reboot instances directly from the CLI
-- 📦 **Instance Management** - List and view detailed information about your VPS instances
 
 ## 🚀 Quick Start
 
 ### Installation
 
+#### Homebrew (macOS/Linux)
+
+```bash
+# Install from Homebrew tap (recommended)
+brew tap hostodo/tap
+brew install hostodo
+
+# Or install directly from the formula
+brew install hostodo/tap/hostodo
+```
+
+#### Download Binary
+
+Download pre-built binaries from the [releases page](https://github.com/hostodo/hostodo-cli/releases):
+
+Available for:
+- macOS (Intel & Apple Silicon)
+- Linux (amd64, arm64)
+- Windows (amd64)
+
+```bash
+# macOS example (ARM64)
+curl -L https://github.com/hostodo/hostodo-cli/releases/latest/download/hostodo_Darwin_arm64.tar.gz | tar xz
+sudo mv hostodo /usr/local/bin/
+
+# Linux example (amd64)
+curl -L https://github.com/hostodo/hostodo-cli/releases/latest/download/hostodo_Linux_x86_64.tar.gz | tar xz
+sudo mv hostodo /usr/local/bin/
+```
+
 #### From Source
 
 ```bash
+# Clone the repository
+git clone https://github.com/hostodo/hostodo-cli.git
 cd hostodo-cli
+
+# Build and install
+make install
+
+# Or build manually
 go build -o hostodo .
 sudo mv hostodo /usr/local/bin/
 ```
 
-#### Download Binary (Coming Soon)
+#### Package Managers
 
-Pre-built binaries will be available for:
-- macOS (Intel & Apple Silicon)
-- Linux (amd64, arm64)
-- Windows (amd64)
+```bash
+# Debian/Ubuntu
+wget https://github.com/hostodo/hostodo-cli/releases/latest/download/hostodo_Linux_x86_64.deb
+sudo dpkg -i hostodo_Linux_x86_64.deb
+
+# RHEL/CentOS/Fedora
+wget https://github.com/hostodo/hostodo-cli/releases/latest/download/hostodo_Linux_x86_64.rpm
+sudo rpm -i hostodo_Linux_x86_64.rpm
+```
 
 ### Authentication
 

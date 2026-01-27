@@ -1,0 +1,161 @@
+# GoReleaser configuration for hostodo-cli
+# See: https://goreleaser.com
+
+version: 2
+
+before:
+  hooks:
+    # Ensure dependencies are up to date
+    - go mod tidy
+    - go mod download
+
+builds:
+  - id: hostodo
+    binary: hostodo
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    # Ignore certain combinations
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+      - -X github.com/hostodo/hostodo-cli/cmd.Version={{.Version}}
+      - -X github.com/hostodo/hostodo-cli/cmd.Commit={{.Commit}}
+      - -X github.com/hostodo/hostodo-cli/cmd.Date={{.Date}}
+    flags:
+      - -trimpath
+
+archives:
+  - id: hostodo
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - README.md
+      - LICENSE*
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+      - Merge pull request
+      - Merge branch
+  groups:
+    - title: 'New Features'
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: 'Bug Fixes'
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: 'Performance Improvements'
+      regexp: '^.*?perf(\([[:word:]]+\))??!?:.+$'
+      order: 2
+    - title: 'Other Changes'
+      order: 999
+
+brews:
+  - name: hostodo
+    repository:
+      owner: hostodo
+      name: homebrew-tap
+      # If you want to use a personal tap, change this to:
+      # owner: yourusername
+      # name: homebrew-hostodo
+
+    # Directory where the formula will be placed in the tap repository
+    directory: Formula
+
+    # Git author for the commit
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+
+    # Commit message template
+    commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
+
+    # Homepage of your project
+    homepage: "https://github.com/hostodo/hostodo-cli"
+
+    # Description
+    description: "Official CLI for managing Hostodo VPS instances"
+
+    # License
+    license: "MIT"
+
+    # If your binary needs any dependencies
+    # dependencies:
+    #   - name: git
+
+    # Install configuration
+    install: |
+      bin.install "hostodo"
+
+    # Test configuration
+    test: |
+      system "#{bin}/hostodo", "--version"
+
+    # Custom download strategy (optional)
+    # custom_block: |
+    #   head "https://github.com/hostodo/hostodo-cli.git"
+
+release:
+  github:
+    owner: hostodo
+    name: hostodo-cli
+
+  # Draft release (you can review before publishing)
+  draft: false
+
+  # Mark as pre-release
+  prerelease: auto
+
+  # Release name
+  name_template: "{{.ProjectName}} v{{.Version}}"
+
+  # Disable release notes
+  # disable: true
+
+# Optional: Universal binaries for macOS
+universal_binaries:
+  - id: hostodo
+    replace: true
+    name_template: '{{ .ProjectName }}'
+
+# Optional: Add Linux packages
+nfpms:
+  - id: hostodo
+    package_name: hostodo
+    vendor: Hostodo
+    homepage: https://hostodo.com
+    maintainer: Hostodo Team <support@hostodo.com>
+    description: Official CLI for managing Hostodo VPS instances
+    license: MIT
+    formats:
+      - deb
+      - rpm
+    bindir: /usr/bin

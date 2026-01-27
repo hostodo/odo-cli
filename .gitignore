@@ -1,5 +1,6 @@
 # Binaries
 hostodo
+hostodo-cli
 hostodo.exe
 *.exe
 *.dll
