@@ -99,7 +99,7 @@ release:
 universal_binaries:
   - id: hostodo
     replace: true
-    name_template: '{{ .ProjectName }}'
+    name_template: 'hostodo'
 
 # Linux packages
 nfpms:
