@@ -76,6 +76,7 @@ brews:
   - repository:
       owner: hostodo
       name: homebrew-tap
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
     directory: Formula
     homepage: "https://github.com/hostodo/cli"
     description: "Official CLI for managing Hostodo VPS instances"
