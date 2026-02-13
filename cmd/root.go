@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/hostodo/hostodo-cli/cmd/agent"
 	"github.com/hostodo/hostodo-cli/cmd/auth"
 	"github.com/hostodo/hostodo-cli/cmd/instances"
 	"github.com/spf13/cobra"
@@ -57,6 +58,7 @@ func init() {
 	rootCmd.SetVersionTemplate(fmt.Sprintf("hostodo version %s (commit: %s, built: %s)\n", Version, Commit, Date))
 
 	// Add subcommands
+	rootCmd.AddCommand(agent.AgentCmd)
 	rootCmd.AddCommand(auth.AuthCmd)
 	rootCmd.AddCommand(instances.InstancesCmd)
 
