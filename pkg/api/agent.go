@@ -86,6 +86,13 @@ type RevokeResponse struct {
 	Count   int    `json:"count"` // Used for revoke-all
 }
 
+// RegenerateTokenResponse represents the response from regenerate operation
+type RegenerateTokenResponse struct {
+	Token      string `json:"token"`       // Plaintext token (one-time display)
+	InstanceID string `json:"instance_id"`
+	CreatedAt  string `json:"created_at"`
+}
+
 // RevokeAgentToken revokes the agent token for a specific instance
 func (c *Client) RevokeAgentToken(instanceID string) error {
 	path := fmt.Sprintf("/client/agent-tokens/%s/revoke/", instanceID)
@@ -119,8 +126,8 @@ func (c *Client) RevokeAllAgentTokens() (*RevokeResponse, error) {
 	return &revokeResp, nil
 }
 
-// RegenerateAgentToken regenerates a revoked agent token
-func (c *Client) RegenerateAgentToken(instanceID string) (*AgentToken, error) {
+// RegenerateAgentToken regenerates an agent token, returns plaintext token
+func (c *Client) RegenerateAgentToken(instanceID string) (*RegenerateTokenResponse, error) {
 	path := fmt.Sprintf("/client/agent-tokens/%s/regenerate/", instanceID)
 
 	resp, err := c.Post(path, nil)
@@ -128,10 +135,10 @@ func (c *Client) RegenerateAgentToken(instanceID string) (*AgentToken, error) {
 		return nil, err
 	}
 
-	var token AgentToken
-	if err := parseResponse(resp, &token); err != nil {
+	var tokenResp RegenerateTokenResponse
+	if err := parseResponse(resp, &tokenResp); err != nil {
 		return nil, err
 	}
 
-	return &token, nil
+	return &tokenResp, nil
 }
