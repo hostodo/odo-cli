@@ -89,40 +89,40 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SEC-01 | TBD | Pending |
-| SEC-02 | TBD | Pending |
-| SEC-03 | TBD | Pending |
-| SEC-04 | TBD | Pending |
-| SEC-05 | TBD | Pending |
-| SEC-06 | TBD | Pending |
-| HOST-01 | TBD | Pending |
-| HOST-02 | TBD | Pending |
-| HOST-03 | TBD | Pending |
-| HOST-04 | TBD | Pending |
-| HOST-05 | TBD | Pending |
-| HOST-06 | TBD | Pending |
-| HOST-07 | TBD | Pending |
-| HOST-08 | TBD | Pending |
-| CMD-01 | TBD | Pending |
-| CMD-02 | TBD | Pending |
-| CMD-03 | TBD | Pending |
-| CMD-04 | TBD | Pending |
-| CMD-05 | TBD | Pending |
-| CMD-06 | TBD | Pending |
-| DEPLOY-01 | TBD | Pending |
-| DEPLOY-02 | TBD | Pending |
-| DEPLOY-03 | TBD | Pending |
-| DEPLOY-04 | TBD | Pending |
-| DEPLOY-05 | TBD | Pending |
-| DEPLOY-06 | TBD | Pending |
-| DEPLOY-07 | TBD | Pending |
-| DEPLOY-08 | TBD | Pending |
+| SEC-01 | Phase 1 | Pending |
+| SEC-02 | Phase 1 | Pending |
+| SEC-03 | Phase 1 | Pending |
+| SEC-04 | Phase 1 | Pending |
+| SEC-05 | Phase 1 | Pending |
+| SEC-06 | Phase 1 | Pending |
+| HOST-01 | Phase 2 | Pending |
+| HOST-02 | Phase 2 | Pending |
+| HOST-03 | Phase 2 | Pending |
+| HOST-04 | Phase 2 | Pending |
+| HOST-05 | Phase 2 | Pending |
+| HOST-06 | Phase 2 | Pending |
+| HOST-07 | Phase 2 | Pending |
+| HOST-08 | Phase 2 | Pending |
+| CMD-01 | Phase 2 | Pending |
+| CMD-02 | Phase 2 | Pending |
+| CMD-03 | Phase 2 | Pending |
+| CMD-04 | Phase 2 | Pending |
+| CMD-05 | Phase 2 | Pending |
+| CMD-06 | Phase 2 | Pending |
+| DEPLOY-01 | Phase 3 | Pending |
+| DEPLOY-02 | Phase 3 | Pending |
+| DEPLOY-03 | Phase 3 | Pending |
+| DEPLOY-04 | Phase 3 | Pending |
+| DEPLOY-05 | Phase 3 | Pending |
+| DEPLOY-06 | Phase 3 | Pending |
+| DEPLOY-07 | Phase 3 | Pending |
+| DEPLOY-08 | Phase 3 | Pending |
 
 **Coverage:**
 - v1 requirements: 28 total
-- Mapped to phases: 0 (awaiting roadmap)
-- Unmapped: 28 ⚠️
+- Mapped to phases: 28 (100% coverage)
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-02-15*
-*Last updated: 2026-02-15 after initial definition*
+*Last updated: 2026-02-15 after roadmap creation*
