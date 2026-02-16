@@ -40,7 +40,8 @@ Instance Management:
   hostodo status <hostname>        # Get details about an instance
   hostodo start <hostname>         # Start an instance
   hostodo stop <hostname>          # Stop an instance
-  hostodo restart <hostname>       # Restart an instance`,
+  hostodo restart <hostname>       # Restart an instance
+  hostodo ssh <hostname>           # SSH to an instance`,
 	Version: Version,
 }
 
@@ -64,6 +65,7 @@ func init() {
 	rootCmd.AddCommand(stopCmd)
 	rootCmd.AddCommand(restartCmd)
 	rootCmd.AddCommand(statusCmd)
+	rootCmd.AddCommand(sshCmd)
 
 	// Root-level aliases for common auth commands
 	rootCmd.AddCommand(loginAliasCmd)
