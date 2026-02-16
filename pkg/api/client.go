@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/cookiejar"
+	"strings"
 	"time"
 
 	"github.com/hostodo/hostodo-cli/pkg/auth"
@@ -25,6 +26,9 @@ var ErrNotAuthenticated = fmt.Errorf("not authenticated - run 'hostodo login'")
 
 // ErrTokenExpired indicates token is invalid and user needs to re-login
 var ErrTokenExpired = fmt.Errorf("session expired - run 'hostodo login'")
+
+// ErrSessionRevoked indicates session was revoked and user needs to re-login
+var ErrSessionRevoked = fmt.Errorf("session revoked - run 'hostodo login' to authenticate again")
 
 // NewClient creates a new API client
 func NewClient(cfg *config.Config) (*Client, error) {
@@ -84,9 +88,20 @@ func (c *Client) doRequest(method, path string, body interface{}) (*http.Respons
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
 
-	// Check for invalid/expired token (401 Unauthorized)
+	// Check for invalid/expired/revoked token (401 Unauthorized)
 	if resp.StatusCode == 401 {
+		// Try to parse error detail for distinct revoked vs expired messages
+		body, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()
+		var errResp struct {
+			Detail string `json:"detail"`
+			Code   string `json:"code"`
+		}
+		if json.Unmarshal(body, &errResp) == nil {
+			if strings.Contains(errResp.Detail, "revoked") {
+				return nil, ErrSessionRevoked
+			}
+		}
 		return nil, ErrTokenExpired
 	}
 

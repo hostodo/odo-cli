@@ -224,11 +224,11 @@ func displayUserCode(userCode string) {
 	fmt.Println("  " + italicStyle.Render("("+formatted+")"))
 }
 
-// formatCodeWithDash formats the 8-char code as XXXX-XXXX
+// formatCodeWithDash formats the 12-char code as XXXX-XXXX-XXXX
 func formatCodeWithDash(code string) string {
 	code = strings.ToUpper(strings.ReplaceAll(code, "-", ""))
-	if len(code) == 8 {
-		return code[:4] + "-" + code[4:]
+	if len(code) == 12 {
+		return code[:4] + "-" + code[4:8] + "-" + code[8:]
 	}
 	return code
 }

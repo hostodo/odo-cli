@@ -112,7 +112,7 @@ func formatSessionsTable(sessions []api.CLISession) string {
 			"%-*d  %-*s  %-*s  %-*s  %-*s",
 			idWidth, session.ID,
 			deviceWidth, truncateSession(session.DeviceName, deviceWidth),
-			ipWidth, truncateSession(session.IPAddress, ipWidth),
+			ipWidth, truncateSession(session.LoginIP, ipWidth),
 			createdWidth, formatDate(session.CreatedAt),
 			lastUsedWidth, formatDate(session.LastUsedAt),
 		)

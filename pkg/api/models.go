@@ -104,11 +104,13 @@ type PowerControlRequest struct {
 
 // CLISession represents an active CLI session
 type CLISession struct {
-	ID         int    `json:"id"`
-	DeviceName string `json:"device_name"`
-	CreatedAt  string `json:"created_at"`
-	LastUsedAt string `json:"last_used_at"`
-	IPAddress  string `json:"ip_address"`
+	ID         int     `json:"id"`
+	DeviceName string  `json:"device_name"`
+	CreatedAt  string  `json:"created_at"`
+	LastUsedAt string  `json:"last_used_at"`
+	LoginIP    string  `json:"login_ip"`
+	UserAgent  string  `json:"user_agent"`
+	RevokedAt  *string `json:"revoked_at"`
 }
 
 // CLISessionsResponse is the paginated response for sessions
