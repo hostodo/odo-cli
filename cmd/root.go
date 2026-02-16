@@ -5,7 +5,6 @@ import (
 	"os"
 
 	"github.com/hostodo/hostodo-cli/cmd/auth"
-	"github.com/hostodo/hostodo-cli/cmd/instances"
 	"github.com/spf13/cobra"
 )
 
@@ -26,8 +25,8 @@ your Hostodo VPS instances.
 
 Features:
   - Interactive TUI with Bubble Tea
-  - List and manage instances
-  - Control instance power (start/stop/reboot)
+  - Hostname-based instance management
+  - Control instance power (start/stop/restart)
   - Multiple output formats (interactive, JSON, simple table)
   - Secure credential storage in system keychain
 
@@ -37,11 +36,11 @@ Authentication:
   hostodo whoami                   # Show current user
 
 Instance Management:
-  hostodo instances list           # List all your instances
-  hostodo instances get <id>       # Get details about an instance
-  hostodo instances start <id>     # Start an instance
-  hostodo instances stop <id>      # Stop an instance
-  hostodo instances reboot <id>    # Reboot an instance`,
+  hostodo list                     # List all your instances (aliases: ls, ps)
+  hostodo status <hostname>        # Get details about an instance
+  hostodo start <hostname>         # Start an instance
+  hostodo stop <hostname>          # Stop an instance
+  hostodo restart <hostname>       # Restart an instance`,
 	Version: Version,
 }
 
@@ -58,7 +57,13 @@ func init() {
 
 	// Add subcommands
 	rootCmd.AddCommand(auth.AuthCmd)
-	rootCmd.AddCommand(instances.InstancesCmd)
+
+	// Root-level instance commands
+	rootCmd.AddCommand(listCmd)
+	rootCmd.AddCommand(startCmd)
+	rootCmd.AddCommand(stopCmd)
+	rootCmd.AddCommand(restartCmd)
+	rootCmd.AddCommand(statusCmd)
 
 	// Root-level aliases for common auth commands
 	rootCmd.AddCommand(loginAliasCmd)
