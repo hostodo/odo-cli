@@ -231,3 +231,12 @@ type PaymentResponse struct {
 	StripeCheckoutURL  string `json:"stripe_checkout_url,omitempty"`
 	Status             string `json:"status"`
 }
+
+// SSHKey represents an SSH public key
+type SSHKey struct {
+	ID          int    `json:"id"`
+	Name        string `json:"name"`
+	PublicKey   string `json:"public_key"`
+	Fingerprint string `json:"fingerprint"`
+	CreatedAt   string `json:"created_at"`
+}
