@@ -203,3 +203,31 @@ type RegionsResponse struct {
 type TemplatesResponse struct {
 	Results []Template `json:"results"`
 }
+
+// Invoice represents a billing invoice
+type Invoice struct {
+	InvoiceNumber string `json:"invoice_number"`
+	Status        string `json:"status"`
+	DueDate       string `json:"due_date"`
+	Subtotal      string `json:"subtotal"`
+	CreatedAt     string `json:"created_at"`
+	Instances     []struct {
+		Hostname string `json:"hostname"`
+		MainIP   string `json:"main_ip"`
+	} `json:"instances"`
+}
+
+// InvoicesResponse represents the paginated invoices response
+type InvoicesResponse struct {
+	Results []Invoice `json:"results"`
+	Count   int       `json:"count"`
+}
+
+// PaymentResponse represents the response after paying an invoice
+type PaymentResponse struct {
+	TransactionID      string `json:"transaction_id"`
+	Amount             string `json:"amount"`
+	BillingIntegration string `json:"billing_integration"`
+	StripeCheckoutURL  string `json:"stripe_checkout_url,omitempty"`
+	Status             string `json:"status"`
+}
