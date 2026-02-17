@@ -291,24 +291,15 @@ View details: https://console.hostodo.com/billing`,
 	return "\n" + receiptStyle.Render(content) + "\n"
 }
 
+// SSHKeyDisplay holds formatted SSH key data for table display
+type SSHKeyDisplay struct {
+	Name        string
+	Fingerprint string
+	CreatedAt   string
+}
+
 // FormatSSHKeysTable formats SSH keys as an ASCII table
-func FormatSSHKeysTable(keys interface{}) string {
-	// Accept flexible type for keys - extract via reflection or type assertion
-	type KeyDisplay struct {
-		Name        string
-		Fingerprint string
-		CreatedAt   string
-	}
-
-	// Type assertion to extract keys
-	var displayKeys []KeyDisplay
-	switch v := keys.(type) {
-	case []KeyDisplay:
-		displayKeys = v
-	default:
-		return "Invalid key format"
-	}
-
+func FormatSSHKeysTable(displayKeys []SSHKeyDisplay) string {
 	if len(displayKeys) == 0 {
 		return "No SSH keys found"
 	}

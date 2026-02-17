@@ -99,13 +99,7 @@ func runKeysList(cmd *cobra.Command, args []string) error {
 	}
 
 	// Calculate fingerprints for each key
-	type KeyDisplay struct {
-		Name        string
-		Fingerprint string
-		CreatedAt   string
-	}
-
-	displayKeys := make([]KeyDisplay, len(keys))
+	displayKeys := make([]ui.SSHKeyDisplay, len(keys))
 	for i, key := range keys {
 		fingerprint, err := utils.CalculateSSHFingerprint(key.PublicKey)
 		if err != nil {
@@ -118,7 +112,7 @@ func runKeysList(cmd *cobra.Command, args []string) error {
 			createdAt = t.Format("2006-01-02")
 		}
 
-		displayKeys[i] = KeyDisplay{
+		displayKeys[i] = ui.SSHKeyDisplay{
 			Name:        key.Name,
 			Fingerprint: fingerprint,
 			CreatedAt:   createdAt,
