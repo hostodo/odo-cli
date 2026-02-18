@@ -72,35 +72,36 @@ Before using the CLI, authenticate with your Hostodo account:
 hostodo login
 ```
 
-You'll be prompted for your email and password. Credentials are securely stored in `~/.hostodo/config.json` with restricted permissions (0600).
+This uses OAuth device flow: a browser window will open where you authorize the CLI. Your access token is securely stored in the OS keychain (macOS Keychain, Linux Secret Service) with an encrypted file fallback.
 
 **Options:**
-- `--email` / `-e`: Provide email address directly
-- `--remember-me` / `-r`: Extend session to 7 days (default: 24 hours)
-- `--api-url`: Use a custom API URL (default: https://console.hostodo.com)
+- `--api-url`: Use a custom API URL (default: https://api.hostodo.com)
 
 ### Basic Usage
 
 ```bash
 # List all instances (interactive TUI)
-hostodo instances list
+hostodo list
 
 # List instances as JSON
-hostodo instances list --json
+hostodo list --json
 
 # List instances as simple table
-hostodo instances list --simple
+hostodo list --simple
 
-# View detailed information
-hostodo instances list --details
+# View detailed information about a specific instance
+hostodo status <hostname>
 
-# Get details about a specific instance
-hostodo instances get <instance-id>
+# Power control (by hostname)
+hostodo start <hostname>
+hostodo stop <hostname>
+hostodo restart <hostname>
 
-# Power control
-hostodo instances start <instance-id>
-hostodo instances stop <instance-id>
-hostodo instances reboot <instance-id>
+# SSH into an instance
+hostodo ssh <hostname>
+
+# Deploy a new instance
+hostodo deploy
 
 # Logout
 hostodo logout
@@ -112,7 +113,7 @@ hostodo logout
 
 All commands support these global flags:
 
-- `--api-url string` - API URL (default: https://console.hostodo.com or $HOSTODO_API_URL)
+- `--api-url string` - API URL (default: https://api.hostodo.com or $HOSTODO_API_URL)
 - `--config string` - Config file path (default: $HOME/.hostodo/config.json)
 - `-h, --help` - Show help
 - `-v, --version` - Show version
@@ -121,17 +122,12 @@ All commands support these global flags:
 
 #### `hostodo login`
 
-Authenticate with your Hostodo account and store credentials.
-
-**Flags:**
-- `-e, --email string` - Email address
-- `-r, --remember-me` - Remember me (extend session to 7 days)
+Authenticate with your Hostodo account using OAuth device flow. Opens a browser for authorization.
 
 **Examples:**
 ```bash
 hostodo login
-hostodo login --email user@example.com
-hostodo login --remember-me
+hostodo login --api-url https://custom-api.example.com
 ```
 
 #### `hostodo logout`
@@ -143,11 +139,31 @@ Clear stored credentials and logout.
 hostodo logout
 ```
 
+#### `hostodo whoami`
+
+Display information about the currently authenticated user.
+
+**Example:**
+```bash
+hostodo whoami
+```
+
+#### `hostodo auth sessions`
+
+List your active CLI sessions.
+
+**Example:**
+```bash
+hostodo auth sessions
+```
+
 ### Instance Commands
 
-#### `hostodo instances list`
+All instance commands accept **hostnames** as the primary identifier. Hostname resolution supports exact match, unambiguous prefix match, and instance ID fallback. Tab completion is available for hostnames.
 
-List all your VPS instances with various output formats.
+#### `hostodo list`
+
+List all your VPS instances with various output formats. Aliases: `ls`, `ps`.
 
 **Flags:**
 - `--json` - Output as JSON
@@ -159,19 +175,19 @@ List all your VPS instances with various output formats.
 **Examples:**
 ```bash
 # Interactive TUI (default)
-hostodo instances list
+hostodo list
 
 # JSON output for scripting
-hostodo instances list --json
+hostodo list --json
 
 # Simple table for quick viewing
-hostodo instances list --simple
+hostodo list --simple
 
 # Detailed view with all information
-hostodo instances list --details
+hostodo list --details
 
 # Fetch 50 instances
-hostodo instances list --limit 50
+hostodo list --limit 50
 ```
 
 **Interactive TUI Controls:**
@@ -179,7 +195,7 @@ hostodo instances list --limit 50
 - `Enter` - View detailed information about selected instance
 - `q` or `Ctrl+C` or `Esc` - Quit
 
-#### `hostodo instances get <instance-id>`
+#### `hostodo status <hostname>`
 
 Get detailed information about a specific instance.
 
@@ -188,8 +204,8 @@ Get detailed information about a specific instance.
 
 **Examples:**
 ```bash
-hostodo instances get abc123
-hostodo instances get abc123 --json
+hostodo status my-server
+hostodo status my-server --json
 ```
 
 **Information Displayed:**
@@ -200,13 +216,13 @@ hostodo instances get abc123 --json
 - Billing information (amount, cycle, next due date)
 - Timeline (created, updated timestamps)
 
-#### `hostodo instances start <instance-id>`
+#### `hostodo start <hostname>`
 
 Start a stopped VPS instance.
 
 **Examples:**
 ```bash
-hostodo instances start abc123
+hostodo start my-server
 ```
 
 The command will:
@@ -214,7 +230,7 @@ The command will:
 2. Wait for the instance to boot (up to 30 seconds)
 3. Display status updates
 
-#### `hostodo instances stop <instance-id>`
+#### `hostodo stop <hostname>`
 
 Stop a running VPS instance.
 
@@ -224,10 +240,10 @@ Stop a running VPS instance.
 **Examples:**
 ```bash
 # Graceful shutdown
-hostodo instances stop abc123
+hostodo stop my-server
 
 # Force shutdown
-hostodo instances stop abc123 --force
+hostodo stop my-server --force
 ```
 
 The command will:
@@ -235,46 +251,165 @@ The command will:
 2. Wait for the instance to shutdown (up to 60 seconds)
 3. Display status updates
 
-#### `hostodo instances reboot <instance-id>`
+#### `hostodo restart <hostname>`
 
-Reboot a VPS instance.
+Restart a VPS instance.
 
 **Flags:**
-- `-f, --force` - Force immediate reboot
+- `-f, --force` - Force immediate restart
 
 **Examples:**
 ```bash
-# Graceful reboot
-hostodo instances reboot abc123
+# Graceful restart
+hostodo restart my-server
 
-# Force reboot
-hostodo instances reboot abc123 --force
+# Force restart
+hostodo restart my-server --force
 ```
 
 The command will:
-1. Send the reboot command to the instance
+1. Send the restart command to the instance
 2. Wait for the instance to restart (up to 90 seconds)
 3. Display status updates
+
+#### `hostodo ssh <hostname>`
+
+Connect to an instance via SSH using the system ssh binary. Auto-detects the SSH user from the instance template. If key-based auth fails and the instance has a default password, automatically retries with sshpass.
+
+**Flags:**
+- `-u, --user string` - SSH user (default: auto-detected from template)
+
+**Examples:**
+```bash
+hostodo ssh my-server
+hostodo ssh my-server --user ubuntu
+```
+
+### Deployment
+
+#### `hostodo deploy`
+
+Deploy a new VPS instance with interactive prompts or flags. Aliases: `new`, `create`.
+
+**Flags:**
+- `--os string` - OS template name (skips OS prompt)
+- `--region string` - Region name (skips region prompt)
+- `--plan string` - Plan name (skips plan prompt)
+- `--hostname string` - Custom hostname (skips auto-generation)
+- `--ssh-key string` - SSH key name to use for authentication
+- `-y, --yes` - Skip confirmation prompt
+- `--json` - JSON output mode (requires --os, --region, --plan)
+
+**Examples:**
+```bash
+# Interactive mode (guided prompts)
+hostodo deploy
+
+# Skip prompts with flags
+hostodo deploy --os "Ubuntu 22.04" --region "Los Angeles" --plan KVM-2G
+
+# Custom hostname
+hostodo deploy --hostname my-server
+
+# Skip confirmation
+hostodo deploy --yes
+
+# JSON output (requires all selection flags)
+hostodo deploy --os "Ubuntu 22.04" --region "Los Angeles" --plan KVM-2G --json
+```
+
+### Billing Commands
+
+#### `hostodo invoices`
+
+List your invoices with optional filtering. Alias: `bills`.
+
+**Flags:**
+- `--status string` - Filter by status (e.g., `unpaid`)
+
+**Examples:**
+```bash
+hostodo invoices
+hostodo invoices --status=unpaid
+```
+
+#### `hostodo pay <invoice-id>`
+
+Pay an invoice.
+
+**Examples:**
+```bash
+hostodo pay INV-12345
+```
+
+### SSH Key Management
+
+#### `hostodo keys list`
+
+List all SSH keys. Alias: `ls`.
+
+#### `hostodo keys add [name] [public-key]`
+
+Add a new SSH key.
+
+**Flags:**
+- `-f, --file string` - Read public key from file
+
+**Examples:**
+```bash
+# Add key inline
+hostodo keys add mykey "ssh-rsa AAAAB3NzaC1yc2EAAA... user@host"
+
+# Add key from file
+hostodo keys add mykey --file ~/.ssh/id_rsa.pub
+```
+
+#### `hostodo keys remove <name>`
+
+Remove an SSH key.
+
+**Examples:**
+```bash
+hostodo keys remove mykey
+```
+
+### Shell Completions
+
+#### `hostodo completion`
+
+Generate shell completion scripts.
+
+**Examples:**
+```bash
+# Bash
+hostodo completion bash > /etc/bash_completion.d/hostodo
+
+# Zsh
+hostodo completion zsh > "${fpath[1]}/_hostodo"
+
+# Fish
+hostodo completion fish > ~/.config/fish/completions/hostodo.fish
+```
 
 ## 🔧 Configuration
 
 ### Configuration File
 
-Credentials are stored in `~/.hostodo/config.json`:
+Configuration is stored in `~/.hostodo/config.json`:
 
 ```json
 {
-  "api_url": "https://console.hostodo.com",
-  "access_token": "...",
-  "refresh_token": "...",
-  "email": "user@example.com"
+  "api_url": "https://api.hostodo.com",
+  "device_id": "a1b2c3d4-..."
 }
 ```
 
+Access tokens are stored separately in the OS keychain (macOS Keychain, Linux Secret Service), with an AES-encrypted file fallback at `~/.hostodo/token.enc` when no keychain is available.
+
 **Security:**
-- File permissions are automatically set to `0600` (owner read/write only)
+- Config file permissions are automatically set to `0600` (owner read/write only)
 - Directory permissions are set to `0700` (owner read/write/execute only)
-- Tokens are automatically refreshed when expired
+- Tokens are stored in the OS keychain, not in config files
 
 ### Environment Variables
 
@@ -303,7 +438,7 @@ The default output format provides a beautiful, interactive table:
 Perfect for scripting and automation:
 
 ```bash
-hostodo instances list --json | jq '.[] | select(.status == "running")'
+hostodo list --json | jq '.[] | select(.status == "running")'
 ```
 
 ### Simple Table
@@ -346,8 +481,8 @@ Instance: abc123
 
 ```bash
 # Clone the repository
-git clone https://github.com/hostodo/hostodo.git
-cd hostodo/hostodo-cli
+git clone https://github.com/hostodo/hostodo-cli.git
+cd hostodo-cli
 
 # Install dependencies
 go mod download
@@ -364,30 +499,52 @@ go build -o hostodo .
 ```
 hostodo-cli/
 ├── cmd/
-│   ├── root.go              # Root command
-│   ├── login.go             # Login command
-│   ├── logout.go            # Logout command
-│   └── instances/
-│       ├── instances.go     # Instances parent command
-│       ├── list.go          # List command
-│       ├── get.go           # Get command
-│       ├── start.go         # Start command
-│       ├── stop.go          # Stop command
-│       └── reboot.go        # Reboot command
+│   ├── root.go              # Root command and command registration
+│   ├── list.go              # List instances command
+│   ├── status.go            # Instance status/details command
+│   ├── start.go             # Start instance command
+│   ├── stop.go              # Stop instance command
+│   ├── restart.go           # Restart instance command
+│   ├── ssh.go               # SSH into instance command
+│   ├── deploy.go            # Deploy new instance wizard
+│   ├── invoices.go          # List invoices command
+│   ├── pay.go               # Pay invoice command
+│   ├── keys.go              # SSH key management commands
+│   ├── completion.go        # Shell completion command
+│   └── auth/
+│       ├── auth.go          # Auth parent command
+│       ├── login.go         # OAuth device flow login
+│       ├── logout.go        # Logout command
+│       ├── whoami.go        # Current user info
+│       └── sessions.go      # CLI session management
 ├── pkg/
 │   ├── api/
-│   │   ├── client.go        # API client with JWT handling
+│   │   ├── client.go        # HTTP API client with Bearer auth
 │   │   ├── auth.go          # Authentication endpoints
 │   │   ├── instances.go     # Instance endpoints
-│   │   └── models.go        # Response/request structs
+│   │   ├── deploy.go        # Deployment endpoints
+│   │   ├── invoices.go      # Billing endpoints
+│   │   ├── sshkeys.go       # SSH key endpoints
+│   │   ├── sessions.go      # Session endpoints
+│   │   └── models.go        # Request/response structs
+│   ├── auth/
+│   │   ├── keychain.go      # Token storage (keychain + encrypted fallback)
+│   │   └── oauth.go         # OAuth device flow client
 │   ├── config/
 │   │   └── config.go        # Config file management
-│   └── ui/
-│       ├── table.go         # Interactive table component
-│       ├── styles.go        # Lipgloss styles
-│       └── formatters.go    # Output formatters
+│   ├── resolver/
+│   │   └── resolver.go      # Hostname → instance resolution + completions
+│   ├── deploy/
+│   │   └── hostname.go      # Hostname generation (adjective-noun combos)
+│   ├── ui/
+│   │   ├── table.go         # Interactive Bubble Tea table component
+│   │   ├── styles.go        # Lipgloss styles
+│   │   └── formatters.go    # Output formatters (JSON/simple/details)
+│   └── utils/
+│       └── ssh.go           # SSH fingerprint utilities
 ├── main.go
 ├── go.mod
+├── Makefile
 └── README.md
 ```
 
@@ -398,15 +555,20 @@ Core libraries:
 - [Bubble Tea](https://github.com/charmbracelet/bubbletea) - TUI framework
 - [Bubbles](https://github.com/charmbracelet/bubbles) - TUI components
 - [Lip Gloss](https://github.com/charmbracelet/lipgloss) - Styling library
-- [Glamour](https://github.com/charmbracelet/glamour) - Markdown rendering
+- [Survey](https://github.com/AlecAivazis/survey) - Interactive prompts
+- [go-keyring](https://github.com/zalando/go-keyring) - OS keychain access
+- [go-figure](https://github.com/common-nighthawk/go-figure) - ASCII art text
 
 ### Testing
 
 ```bash
+# Run all tests
+make test
+
 # Test against local development API
 export HOSTODO_API_URL=http://localdev.hostodo.com:8000
-./hostodo login
-./hostodo instances list
+hostodo login
+hostodo list
 ```
 
 ## 🤝 Contributing
@@ -432,20 +594,22 @@ MIT License - see LICENSE file for details
 
 ## 🎯 Roadmap
 
-### Phase 2 (Planned)
-- [ ] SSH key management commands
+### Completed
+- [x] SSH key management commands
+- [x] Instance deployment wizard
+- [x] Billing and invoice management
+- [x] SSH connectivity
+- [x] Shell auto-completion for hostnames
+- [x] OAuth device flow authentication
+
+### Planned
 - [ ] Bandwidth monitoring and alerts
-- [ ] Instance deployment wizard
 - [ ] Backup management
 - [ ] Network (reverse DNS) management
-- [ ] Billing and invoice management
-
-### Phase 3 (Future)
 - [ ] Interactive dashboard with real-time metrics
 - [ ] Log streaming and viewing
 - [ ] Custom script execution
 - [ ] Bulk operations
-- [ ] Auto-completion for instance IDs
 - [ ] Configuration templates
 
 ---
