@@ -19,6 +19,7 @@ type Client struct {
 	BaseURL    string
 	HTTPClient *http.Client
 	config     *config.Config
+	TokenFunc  func() (string, error) // injectable for testing; defaults to auth.GetToken
 }
 
 // ErrNotAuthenticated indicates user needs to login
@@ -47,6 +48,7 @@ func NewClient(cfg *config.Config) (*Client, error) {
 		BaseURL:    cfg.APIURL,
 		HTTPClient: httpClient,
 		config:     cfg,
+		TokenFunc:  auth.GetToken,
 	}
 
 	return client, nil
@@ -54,8 +56,8 @@ func NewClient(cfg *config.Config) (*Client, error) {
 
 // doRequest performs an HTTP request with token from keychain
 func (c *Client) doRequest(method, path string, body interface{}) (*http.Response, error) {
-	// Get token from keychain
-	token, err := auth.GetToken()
+	// Get token via injectable function (defaults to auth.GetToken)
+	token, err := c.TokenFunc()
 	if err != nil {
 		return nil, ErrNotAuthenticated
 	}
