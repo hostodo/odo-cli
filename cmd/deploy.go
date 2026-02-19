@@ -500,7 +500,7 @@ func findRegion(regions []api.Region, name string) *api.Region {
 func findPlan(plans []api.Plan, name string) *api.Plan {
 	lowerName := strings.ToLower(name)
 	for i := range plans {
-		if strings.EqualFold(plans[i].Name, lowerName) {
+		if strings.Contains(strings.ToLower(plans[i].Name), lowerName) {
 			return &plans[i]
 		}
 	}
@@ -537,9 +537,6 @@ func pollForProvisioning(client *api.Client, hostname string, timeout time.Durat
 			if time.Since(startTime) > timeout {
 				return nil, fmt.Errorf("provisioning timeout exceeded")
 			}
-
-		case <-time.After(timeout):
-			return nil, fmt.Errorf("provisioning timeout exceeded")
 		}
 	}
 }
@@ -657,9 +654,6 @@ func pollForProvisioningWithProgress(client *api.Client, hostname string, timeou
 			if time.Since(startTime) > timeout {
 				return nil, fmt.Errorf("provisioning timeout exceeded")
 			}
-
-		case <-time.After(timeout):
-			return nil, fmt.Errorf("provisioning timeout exceeded")
 		}
 	}
 }

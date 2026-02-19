@@ -43,7 +43,16 @@ Examples:
   hostodo ssh mybox -- -A -v
 
 Note: Everything after -- is passed directly to the ssh binary.`,
-	Args:              cobra.ExactArgs(1),
+	Args: func(cmd *cobra.Command, args []string) error {
+		n := cmd.ArgsLenAtDash()
+		if n < 0 {
+			n = len(args)
+		}
+		if n != 1 {
+			return fmt.Errorf("accepts exactly 1 hostname argument, received %d", n)
+		}
+		return nil
+	},
 	ValidArgsFunction: resolver.CompleteHostname,
 	Run:               runSSH,
 }
@@ -112,11 +121,8 @@ func runSSH(cmd *cobra.Command, args []string) {
 
 	// Collect extra args after --
 	var extraArgs []string
-	for i, arg := range os.Args {
-		if arg == "--" {
-			extraArgs = os.Args[i+1:]
-			break
-		}
+	if dash := cmd.ArgsLenAtDash(); dash >= 0 {
+		extraArgs = args[dash:]
 	}
 
 	// Find ssh binary
@@ -137,11 +143,13 @@ func runSSH(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	// If SSH failed and we have a default password, retry with sshpass
-	if instance.DefaultPassword != "" {
+	// Only retry with sshpass on SSH-level errors (exit 255 = connection/auth failure)
+	if exitCode == 255 && instance.DefaultPassword != "" {
 		sshpassBinary, err := exec.LookPath("sshpass")
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "SSH key auth failed. Install sshpass to use password auth: brew install sshpass\n")
+			fmt.Fprintf(os.Stderr, "SSH key auth failed. Install sshpass to use password auth.\n")
+		fmt.Fprintf(os.Stderr, "  macOS:  brew install sshpass\n")
+		fmt.Fprintf(os.Stderr, "  Linux:  apt install sshpass  (or: yum install sshpass)\n")
 			os.Exit(exitCode)
 		}
 

@@ -11,8 +11,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var restartForce bool
-
 // restartCmd represents the restart command
 var restartCmd = &cobra.Command{
 	Use:               "restart <hostname>",
@@ -20,20 +18,14 @@ var restartCmd = &cobra.Command{
 	ValidArgsFunction: resolver.CompleteHostname,
 	Long: `Restart a VPS instance.
 
-This command will gracefully restart the instance. Use --force for immediate restart.
 You can specify the instance by hostname, hostname prefix, or instance ID.
 
 Examples:
   hostodo restart mybox              # Restart instance with hostname "mybox"
   hostodo restart my                 # Restart if "my" is an unambiguous prefix
-  hostodo restart mybox --force      # Force immediate restart
   hostodo restart abc123             # Restart by instance ID (fallback)`,
 	Args: cobra.ExactArgs(1),
 	Run:  runRestart,
-}
-
-func init() {
-	restartCmd.Flags().BoolVarP(&restartForce, "force", "f", false, "Force immediate restart")
 }
 
 func runRestart(cmd *cobra.Command, args []string) {
@@ -65,11 +57,7 @@ func runRestart(cmd *cobra.Command, args []string) {
 	instance := result.Instance
 
 	// Restart instance
-	if restartForce {
-		fmt.Printf("Force restarting instance %s (%s)...\n", instance.Hostname, instance.MainIP)
-	} else {
-		fmt.Printf("Restarting instance %s (%s)...\n", instance.Hostname, instance.MainIP)
-	}
+	fmt.Printf("Restarting instance %s (%s)...\n", instance.Hostname, instance.MainIP)
 
 	err = client.RebootInstance(instance.InstanceID)
 	if err != nil {

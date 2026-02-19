@@ -137,7 +137,7 @@ func (c *Client) CreateDeployOrder(req DeployRequest) (*DeployResponse, error) {
 // CheckHostnameExists checks if a hostname is already in use
 func (c *Client) CheckHostnameExists(hostname string) (bool, error) {
 	// Use ListInstances to get all instances and check for hostname collision
-	instancesResp, err := c.ListInstances(100, 0)
+	instancesResp, err := c.ListInstances(1000, 0)
 	if err != nil {
 		return false, err
 	}

@@ -67,6 +67,13 @@ func Generate(existsCheck func(string) (bool, error)) (string, error) {
 	suffix := rand.Intn(10000)
 	hostname := fmt.Sprintf("%s-%s-%04d", adj, noun, suffix)
 
+	exists, err := existsCheck(hostname)
+	if err != nil {
+		return "", fmt.Errorf("failed to check hostname existence: %w", err)
+	}
+	if exists {
+		return "", fmt.Errorf("could not generate a unique hostname after %d retries", maxRetries+1)
+	}
 	return hostname, nil
 }
 

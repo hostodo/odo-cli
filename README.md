@@ -234,16 +234,9 @@ The command will:
 
 Stop a running VPS instance.
 
-**Flags:**
-- `-f, --force` - Force immediate shutdown (without graceful shutdown)
-
 **Examples:**
 ```bash
-# Graceful shutdown
 hostodo stop my-server
-
-# Force shutdown
-hostodo stop my-server --force
 ```
 
 The command will:
@@ -255,16 +248,9 @@ The command will:
 
 Restart a VPS instance.
 
-**Flags:**
-- `-f, --force` - Force immediate restart
-
 **Examples:**
 ```bash
-# Graceful restart
 hostodo restart my-server
-
-# Force restart
-hostodo restart my-server --force
 ```
 
 The command will:
@@ -275,6 +261,8 @@ The command will:
 #### `hostodo ssh <hostname>`
 
 Connect to an instance via SSH using the system ssh binary. Auto-detects the SSH user from the instance template. If key-based auth fails and the instance has a default password, automatically retries with sshpass.
+
+> **Security note:** The `sshpass` fallback passes the password via an environment variable which may be visible to other local processes. Avoid using this on shared or multi-tenant hosts.
 
 **Flags:**
 - `-u, --user string` - SSH user (default: auto-detected from template)

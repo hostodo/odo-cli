@@ -26,7 +26,7 @@ This is a Go CLI for managing Hostodo VPS instances. It uses **Cobra** for comma
 
 Commands are flat at the root level (not nested under `instances`):
 
-```
+```text
 hostodo login / logout / whoami     → aliases for auth subcommands
 hostodo list (ls, ps)               → list instances (TUI/JSON/simple/details)
 hostodo status <hostname>           → instance details

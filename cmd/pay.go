@@ -50,7 +50,7 @@ func runPay(cmd *cobra.Command, args []string) error {
 		errorMsg := ui.ErrorStyle.Render(fmt.Sprintf("Payment failed: %s", err.Error()))
 		fmt.Println(errorMsg)
 		fmt.Println("\nUpdate your payment method at https://console.hostodo.com/billing")
-		return err
+		return nil
 	}
 
 	// Payment successful - format payment method display

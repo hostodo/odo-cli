@@ -10,9 +10,15 @@ import (
 	"github.com/hostodo/hostodo-cli/pkg/api"
 )
 
-// FormatInstancesJSON formats instances as JSON
+// FormatInstancesJSON formats instances as JSON, omitting sensitive fields
 func FormatInstancesJSON(instances []api.Instance) (string, error) {
-	data, err := json.MarshalIndent(instances, "", "  ")
+	// Strip sensitive fields before marshaling
+	sanitized := make([]api.Instance, len(instances))
+	copy(sanitized, instances)
+	for i := range sanitized {
+		sanitized[i].DefaultPassword = ""
+	}
+	data, err := json.MarshalIndent(sanitized, "", "  ")
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal JSON: %w", err)
 	}
@@ -219,7 +225,7 @@ func FormatInvoicesTable(invoices []api.Invoice) string {
 		if invoice.Status == "unpaid" && invoice.DueDate != "" {
 			// Parse due date and check if it's past
 			dueDate, err := time.Parse("2006-01-02", invoice.DueDate)
-			if err == nil && time.Now().After(dueDate) {
+			if err == nil && time.Now().After(dueDate.AddDate(0, 0, 1)) {
 				statusDisplay = "Overdue"
 			}
 		}

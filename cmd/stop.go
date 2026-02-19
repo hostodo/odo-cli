@@ -11,8 +11,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var stopForce bool
-
 // stopCmd represents the stop command
 var stopCmd = &cobra.Command{
 	Use:               "stop <hostname>",
@@ -20,20 +18,14 @@ var stopCmd = &cobra.Command{
 	ValidArgsFunction: resolver.CompleteHostname,
 	Long: `Stop a running VPS instance.
 
-This command will gracefully shut down the instance. Use --force for immediate shutdown.
 You can specify the instance by hostname, hostname prefix, or instance ID.
 
 Examples:
   hostodo stop mybox              # Stop instance with hostname "mybox"
   hostodo stop my                 # Stop if "my" is an unambiguous prefix
-  hostodo stop mybox --force      # Force immediate shutdown
   hostodo stop abc123             # Stop by instance ID (fallback)`,
 	Args: cobra.ExactArgs(1),
 	Run:  runStop,
-}
-
-func init() {
-	stopCmd.Flags().BoolVarP(&stopForce, "force", "f", false, "Force immediate shutdown")
 }
 
 func runStop(cmd *cobra.Command, args []string) {
@@ -65,11 +57,7 @@ func runStop(cmd *cobra.Command, args []string) {
 	instance := result.Instance
 
 	// Stop instance
-	if stopForce {
-		fmt.Printf("Force stopping instance %s (%s)...\n", instance.Hostname, instance.MainIP)
-	} else {
-		fmt.Printf("Stopping instance %s (%s)...\n", instance.Hostname, instance.MainIP)
-	}
+	fmt.Printf("Stopping instance %s (%s)...\n", instance.Hostname, instance.MainIP)
 
 	err = client.StopInstance(instance.InstanceID)
 	if err != nil {
