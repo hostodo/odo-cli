@@ -478,6 +478,13 @@ func formatBW(gb int) string {
 }
 
 func findTemplate(templates []api.Template, name string) *api.Template {
+	// Try exact match first (case-insensitive)
+	for i := range templates {
+		if strings.EqualFold(templates[i].Name, name) {
+			return &templates[i]
+		}
+	}
+	// Fall back to substring match
 	lowerName := strings.ToLower(name)
 	for i := range templates {
 		if strings.Contains(strings.ToLower(templates[i].Name), lowerName) {
@@ -488,6 +495,13 @@ func findTemplate(templates []api.Template, name string) *api.Template {
 }
 
 func findRegion(regions []api.Region, name string) *api.Region {
+	// Try exact match first (case-insensitive)
+	for i := range regions {
+		if strings.EqualFold(regions[i].Name, name) {
+			return &regions[i]
+		}
+	}
+	// Fall back to substring match
 	lowerName := strings.ToLower(name)
 	for i := range regions {
 		if strings.Contains(strings.ToLower(regions[i].Name), lowerName) {
@@ -498,9 +512,8 @@ func findRegion(regions []api.Region, name string) *api.Region {
 }
 
 func findPlan(plans []api.Plan, name string) *api.Plan {
-	lowerName := strings.ToLower(name)
 	for i := range plans {
-		if strings.EqualFold(plans[i].Name, lowerName) {
+		if strings.EqualFold(plans[i].Name, name) {
 			return &plans[i]
 		}
 	}
@@ -537,9 +550,6 @@ func pollForProvisioning(client *api.Client, hostname string, timeout time.Durat
 			if time.Since(startTime) > timeout {
 				return nil, fmt.Errorf("provisioning timeout exceeded")
 			}
-
-		case <-time.After(timeout):
-			return nil, fmt.Errorf("provisioning timeout exceeded")
 		}
 	}
 }
@@ -562,12 +572,14 @@ func pollForProvisioningWithProgress(client *api.Client, hostname string, timeou
 	for {
 		select {
 		case <-ticker.C:
+			// Fetch instances once per tick (reused for both discovery and IP check)
+			instancesResp, err := client.ListInstances(1000, 0)
+			if err != nil {
+				continue
+			}
+
 			// Step 1: Find instance by hostname
 			if !instanceFound {
-				instancesResp, err := client.ListInstances(1000, 0)
-				if err != nil {
-					continue
-				}
 				for _, inst := range instancesResp.Results {
 					if inst.Hostname == hostname {
 						instanceFound = true
@@ -619,19 +631,16 @@ func pollForProvisioningWithProgress(client *api.Client, hostname string, timeou
 				}
 			}
 
-			// Step 3: Check if IP appeared (in case it wasn't there initially)
+			// Step 3: Check if IP appeared (reuse instancesResp from above)
 			if !ipPrinted {
-				instancesResp, err := client.ListInstances(1000, 0)
-				if err == nil {
-					for _, inst := range instancesResp.Results {
-						if inst.InstanceID == instanceID && inst.MainIP != "" {
-							s.Stop()
-							fmt.Println(ui.SuccessStyle.Render("✓ Assigned IPv4: " + inst.MainIP))
-							ipPrinted = true
-							s.Suffix = " Provisioning server..."
-							s.Start()
-							break
-						}
+				for _, inst := range instancesResp.Results {
+					if inst.InstanceID == instanceID && inst.MainIP != "" {
+						s.Stop()
+						fmt.Println(ui.SuccessStyle.Render("✓ Assigned IPv4: " + inst.MainIP))
+						ipPrinted = true
+						s.Suffix = " Provisioning server..."
+						s.Start()
+						break
 					}
 				}
 			}
@@ -657,9 +666,6 @@ func pollForProvisioningWithProgress(client *api.Client, hostname string, timeou
 			if time.Since(startTime) > timeout {
 				return nil, fmt.Errorf("provisioning timeout exceeded")
 			}
-
-		case <-time.After(timeout):
-			return nil, fmt.Errorf("provisioning timeout exceeded")
 		}
 	}
 }

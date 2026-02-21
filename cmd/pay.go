@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/AlecAivazis/survey/v2"
 	"github.com/hostodo/hostodo-cli/pkg/api"
 	"github.com/hostodo/hostodo-cli/pkg/auth"
 	"github.com/hostodo/hostodo-cli/pkg/config"
@@ -10,17 +11,22 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var payYesFlag bool
+
 var payCmd = &cobra.Command{
 	Use:   "pay [invoice-number]",
 	Short: "Pay an invoice",
 	Long: `Pay an invoice using your default payment method.
 
-This command charges your default payment method immediately without confirmation.
-
 Example:
-  hostodo pay INV-12345`,
+  hostodo pay INV-12345
+  hostodo pay INV-12345 --yes    # Skip confirmation`,
 	Args: cobra.ExactArgs(1),
 	RunE: runPay,
+}
+
+func init() {
+	payCmd.Flags().BoolVarP(&payYesFlag, "yes", "y", false, "Skip confirmation prompt")
 }
 
 func runPay(cmd *cobra.Command, args []string) error {
@@ -41,6 +47,23 @@ func runPay(cmd *cobra.Command, args []string) error {
 	client, err := api.NewClient(cfg)
 	if err != nil {
 		return fmt.Errorf("failed to create API client: %w", err)
+	}
+
+	// Confirmation prompt (unless --yes)
+	if !payYesFlag {
+		confirmMsg := fmt.Sprintf("Pay invoice %s using your default payment method?", invoiceNumber)
+		var confirmed bool
+		prompt := &survey.Confirm{
+			Message: confirmMsg,
+			Default: false,
+		}
+		if err := survey.AskOne(prompt, &confirmed); err != nil {
+			return err
+		}
+		if !confirmed {
+			fmt.Println("Payment cancelled.")
+			return nil
+		}
 	}
 
 	// Pay invoice

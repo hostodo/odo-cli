@@ -147,13 +147,14 @@ func runSSH(cmd *cobra.Command, args []string) {
 
 		fmt.Fprintf(os.Stderr, "Key auth failed, retrying with instance password...\n")
 
-		// sshpass -p <password> ssh -o PubkeyAuthentication=no <target> [extra args]
-		sshpassArgs := []string{"-p", instance.DefaultPassword, sshBinary}
+		// Use SSHPASS env var to avoid exposing password in process list
+		sshpassArgs := []string{"-e", sshBinary}
 		sshpassArgs = append(sshpassArgs, "-o", "PubkeyAuthentication=no")
 		sshpassArgs = append(sshpassArgs, sshTarget)
 		sshpassArgs = append(sshpassArgs, extraArgs...)
 
 		passCmd := exec.Command(sshpassBinary, sshpassArgs...)
+		passCmd.Env = append(os.Environ(), "SSHPASS="+instance.DefaultPassword)
 		passCmd.Stdin = os.Stdin
 		passCmd.Stdout = os.Stdout
 		passCmd.Stderr = os.Stderr

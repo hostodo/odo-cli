@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math/rand"
 	"regexp"
-	"time"
 )
 
 // Word lists for hostname generation - mixed tone (neutral/techy + fun/playful)
@@ -38,9 +37,6 @@ var hostnameRegex = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$
 
 // Generate creates a unique hostname using adjective-noun pattern with collision detection
 func Generate(existsCheck func(string) (bool, error)) (string, error) {
-	// Initialize random seed
-	rand.Seed(time.Now().UnixNano())
-
 	maxRetries := 10
 	for i := 0; i < maxRetries; i++ {
 		// Generate random adjective-noun combination
@@ -74,6 +70,11 @@ func Generate(existsCheck func(string) (bool, error)) (string, error) {
 func Validate(hostname string) error {
 	if hostname == "" {
 		return fmt.Errorf("hostname cannot be empty")
+	}
+
+	// RFC 1123: hostname labels must be 63 characters or less
+	if len(hostname) > 63 {
+		return fmt.Errorf("hostname must be 63 characters or less (got %d)", len(hostname))
 	}
 
 	// Check if hostname starts or ends with hyphen

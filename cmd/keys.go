@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 	"time"
 
@@ -133,7 +133,7 @@ func runKeysAdd(cmd *cobra.Command, args []string) error {
 	// Get public key from file or arguments
 	if keyFileFlag != "" {
 		// Read from file
-		data, err := ioutil.ReadFile(keyFileFlag)
+		data, err := os.ReadFile(keyFileFlag)
 		if err != nil {
 			return fmt.Errorf("failed to read key file: %w", err)
 		}
