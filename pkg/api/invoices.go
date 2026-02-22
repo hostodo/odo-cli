@@ -1,12 +1,15 @@
 package api
 
-import "fmt"
+import (
+	"fmt"
+	"net/url"
+)
 
 // ListInvoices retrieves all invoices with optional status filter
 func (c *Client) ListInvoices(status string) ([]Invoice, error) {
 	path := "/v1/billing/invoices/"
 	if status != "" {
-		path = fmt.Sprintf("%s?status=%s", path, status)
+		path = fmt.Sprintf("%s?status=%s", path, url.QueryEscape(status))
 	}
 
 	resp, err := c.Get(path)

@@ -77,10 +77,14 @@ func (c *Client) StartInstance(instanceID string) error {
 	return parseResponse(resp, nil)
 }
 
-// StopInstance stops a running instance
-func (c *Client) StopInstance(instanceID string) error {
+// StopInstance stops a running instance. If force is true, performs an immediate shutdown.
+func (c *Client) StopInstance(instanceID string, force bool) error {
 	path := fmt.Sprintf("/client/instances/%s/stop/", instanceID)
-	resp, err := c.Post(path, nil)
+	var body interface{}
+	if force {
+		body = map[string]bool{"force": true}
+	}
+	resp, err := c.Post(path, body)
 	if err != nil {
 		return err
 	}
@@ -104,10 +108,14 @@ func (c *Client) ListInstanceEvents(instanceID string) ([]EventLog, error) {
 	return eventsResp.Events, nil
 }
 
-// RebootInstance reboots an instance
-func (c *Client) RebootInstance(instanceID string) error {
+// RebootInstance reboots an instance. If force is true, performs an immediate reboot.
+func (c *Client) RebootInstance(instanceID string, force bool) error {
 	path := fmt.Sprintf("/client/instances/%s/reboot/", instanceID)
-	resp, err := c.Post(path, nil)
+	var body interface{}
+	if force {
+		body = map[string]bool{"force": true}
+	}
+	resp, err := c.Post(path, body)
 	if err != nil {
 		return err
 	}

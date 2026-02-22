@@ -67,25 +67,17 @@ func init() {
 }
 
 func runDeploy(cmd *cobra.Command, args []string) error {
-	// JSON mode validation
-	if jsonFlag {
-		if osFlag == "" || regionFlag == "" || planFlag == "" {
-			return fmt.Errorf("JSON mode requires --os, --region, and --plan flags")
-		}
+	if jsonFlag && (osFlag == "" || regionFlag == "" || planFlag == "") {
+		return fmt.Errorf("JSON mode requires --os, --region, and --plan flags")
 	}
 
-	// Load config
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
-
-	// Check authentication
 	if !auth.IsAuthenticated() {
 		return fmt.Errorf("not authenticated. Run 'hostodo login' first")
 	}
-
-	// Create API client
 	client, err := api.NewClient(cfg)
 	if err != nil {
 		return fmt.Errorf("failed to create API client: %w", err)
@@ -95,177 +87,42 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 	if !jsonFlag {
 		fmt.Println("Loading available options...")
 	}
-
 	templates, err := client.ListTemplates()
 	if err != nil {
 		return fmt.Errorf("failed to load OS templates: %w", err)
 	}
-
 	regions, err := client.ListRegions()
 	if err != nil {
 		return fmt.Errorf("failed to load regions: %w", err)
 	}
-
 	plans, err := client.ListPlans()
 	if err != nil {
 		return fmt.Errorf("failed to load plans: %w", err)
 	}
 
-	// Select OS template
-	var selectedTemplate *api.Template
-	if osFlag != "" {
-		selectedTemplate = findTemplate(templates, osFlag)
-		if selectedTemplate == nil {
-			templateNames := make([]string, len(templates))
-			for i, t := range templates {
-				templateNames[i] = t.Name
-			}
-			return fmt.Errorf("no OS template matching '%s'. Available: %s", osFlag, strings.Join(templateNames, ", "))
-		}
-	} else {
-		if jsonFlag {
-			return fmt.Errorf("JSON mode requires --os flag")
-		}
-		templateNames := make([]string, len(templates))
-		for i, t := range templates {
-			templateNames[i] = t.Name
-		}
-		var selectedOS string
-		prompt := &survey.Select{
-			Message:  "Choose an operating system:",
-			Options:  templateNames,
-			PageSize: 15,
-		}
-		if err := survey.AskOne(prompt, &selectedOS); err != nil {
-			return err
-		}
-		selectedTemplate = findTemplate(templates, selectedOS)
+	// Selections
+	selectedTemplate, err := selectTemplate(templates, osFlag, jsonFlag)
+	if err != nil {
+		return err
+	}
+	selectedRegion, err := selectRegion(regions, regionFlag, jsonFlag)
+	if err != nil {
+		return err
+	}
+	selectedPlan, err := selectPlan(plans, planFlag, jsonFlag)
+	if err != nil {
+		return err
+	}
+	hostname, err := resolveHostname(client, hostnameFlag)
+	if err != nil {
+		return err
+	}
+	sshKeyName, err := selectSSHKey(client, sshKeyFlag, jsonFlag)
+	if err != nil {
+		return err
 	}
 
-	// Select region
-	var selectedRegion *api.Region
-	if regionFlag != "" {
-		selectedRegion = findRegion(regions, regionFlag)
-		if selectedRegion == nil {
-			regionNames := make([]string, len(regions))
-			for i, r := range regions {
-				regionNames[i] = r.Name
-			}
-			return fmt.Errorf("no region matching '%s'. Available: %s", regionFlag, strings.Join(regionNames, ", "))
-		}
-	} else {
-		if jsonFlag {
-			return fmt.Errorf("JSON mode requires --region flag")
-		}
-		regionNames := make([]string, len(regions))
-		for i, r := range regions {
-			regionNames[i] = r.Name
-		}
-		var selectedRegionName string
-		prompt := &survey.Select{
-			Message:  "Choose a region:",
-			Options:  regionNames,
-			PageSize: 15,
-		}
-		if err := survey.AskOne(prompt, &selectedRegionName); err != nil {
-			return err
-		}
-		selectedRegion = findRegion(regions, selectedRegionName)
-	}
-
-	// Select plan
-	var selectedPlan *api.Plan
-	if planFlag != "" {
-		selectedPlan = findPlan(plans, planFlag)
-		if selectedPlan == nil {
-			planNames := make([]string, len(plans))
-			for i, p := range plans {
-				planNames[i] = p.Name
-			}
-			return fmt.Errorf("no plan matching '%s'. Available: %s", planFlag, strings.Join(planNames, ", "))
-		}
-	} else {
-		if jsonFlag {
-			return fmt.Errorf("JSON mode requires --plan flag")
-		}
-		planOptions := make([]string, len(plans))
-		for i, p := range plans {
-			planOptions[i] = fmt.Sprintf("%-12s $%s/mo   %d vCPU, %sGB RAM, %dGB SSD, %sTB BW",
-				p.Name, p.PriceMonthly, p.VCPU, formatRAM(p.RAM), p.Disk, formatBW(p.Bandwidth))
-		}
-		var selectedPlanOption string
-		prompt := &survey.Select{
-			Message:  "Choose a plan:",
-			Options:  planOptions,
-			PageSize: 15,
-		}
-		if err := survey.AskOne(prompt, &selectedPlanOption); err != nil {
-			return err
-		}
-		// Extract plan name from formatted option (first field)
-		planName := strings.Fields(selectedPlanOption)[0]
-		selectedPlan = findPlan(plans, planName)
-	}
-
-	// Determine hostname
-	var hostname string
-	if hostnameFlag != "" {
-		if err := deploy.Validate(hostnameFlag); err != nil {
-			return fmt.Errorf("invalid hostname: %w", err)
-		}
-		hostname = hostnameFlag
-	} else {
-		hostname, err = deploy.Generate(client.CheckHostnameExists)
-		if err != nil {
-			return fmt.Errorf("failed to generate hostname: %w", err)
-		}
-	}
-
-	// SSH key selection
-	var selectedSSHKeyName string
-	if sshKeyFlag != "" {
-		// Use flag value
-		selectedSSHKeyName = sshKeyFlag
-	} else {
-		// Fetch SSH keys (non-fatal - skip on error)
-		sshKeys, err := client.ListSSHKeys()
-		if err == nil && len(sshKeys) > 0 {
-			if len(sshKeys) == 1 {
-				// Auto-select single key
-				selectedSSHKeyName = sshKeys[0].Name
-				if !jsonFlag {
-					fmt.Printf("Using SSH key: %s\n", sshKeys[0].Name)
-				}
-			} else {
-				// Multiple keys - show picker (not in JSON mode)
-				if jsonFlag {
-					return fmt.Errorf("multiple SSH keys found. Use --ssh-key flag to specify which one")
-				}
-				keyOptions := make([]string, len(sshKeys))
-				for i, key := range sshKeys {
-					fingerprint, err := utils.CalculateSSHFingerprint(key.PublicKey)
-					if err != nil {
-						fingerprint = "(error)"
-					}
-					keyOptions[i] = fmt.Sprintf("%s (%s)", key.Name, fingerprint)
-				}
-				var selectedOption string
-				prompt := &survey.Select{
-					Message:  "Choose an SSH key:",
-					Options:  keyOptions,
-					PageSize: 10,
-				}
-				if err := survey.AskOne(prompt, &selectedOption); err != nil {
-					return err
-				}
-				// Extract key name from option
-				selectedSSHKeyName = strings.Split(selectedOption, " (")[0]
-			}
-		}
-		// If no keys or error fetching, skip silently (deploy with password auth)
-	}
-
-	// Get quote
+	// Quote and payment
 	quote, err := client.GetQuote(api.QuoteRequest{
 		Plan:         selectedPlan.Name,
 		BillingCycle: "monthly",
@@ -274,48 +131,19 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to get price quote: %w", err)
 	}
-
-	// Get payment method
 	paymentMethod, err := client.GetDefaultPaymentMethod()
 	if err != nil {
 		return fmt.Errorf("failed to get payment method: %w", err)
 	}
 	if paymentMethod == nil {
-		errorMsg := ui.ErrorStyle.Render("No payment method on file. Add one at https://panel.hostodo.com/billing")
-		fmt.Println(errorMsg)
+		fmt.Println(ui.ErrorStyle.Render("No payment method on file. Add one at https://panel.hostodo.com/billing"))
 		return fmt.Errorf("no payment method configured")
 	}
 
-	// Confirmation prompt (unless --yes or --json)
+	// Confirmation
 	if !yesFlag && !jsonFlag {
-		summary := fmt.Sprintf(`Deploy Summary:
-  OS:       %s
-  Region:   %s
-  Plan:     %s (%d vCPU, %sGB RAM, %dGB SSD)
-  Hostname: %s
-  Price:    $%s/mo
-  Payment:  %s ****%s`,
-			selectedTemplate.Name,
-			selectedRegion.Name,
-			selectedPlan.Name,
-			selectedPlan.VCPU,
-			formatRAM(selectedPlan.RAM),
-			selectedPlan.Disk,
-			hostname,
-			quote.AmountDue,
-			paymentMethod.CardType,
-			paymentMethod.LastFour)
-
-		fmt.Println("\n" + summary + "\n")
-
-		confirmMsg := fmt.Sprintf("Deploy? (charges $%s to %s ****%s)",
-			quote.AmountDue, paymentMethod.CardType, paymentMethod.LastFour)
-		var confirmed bool
-		prompt := &survey.Confirm{
-			Message: confirmMsg,
-			Default: true,
-		}
-		if err := survey.AskOne(prompt, &confirmed); err != nil {
+		confirmed, err := confirmDeploy(selectedTemplate, selectedRegion, selectedPlan, hostname, quote, paymentMethod)
+		if err != nil {
 			return err
 		}
 		if !confirmed {
@@ -324,107 +152,298 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Provisioning with progress display
-	var deployResp *api.DeployResponse
-	var instance *api.Instance
-
-	if !jsonFlag {
-		// Stage 1 - Creating order
-		s := spinner.New(spinner.CharSets[14], 100*time.Millisecond)
-		s.Suffix = " Creating order..."
-		s.Start()
-
-		deployResp, err = client.CreateDeployOrder(api.DeployRequest{
-			Hostname:     hostname,
-			Region:       selectedRegion.Name,
-			Template:     selectedTemplate.Name,
-			Plan:         selectedPlan.Name,
-			BillingCycle: "monthly",
-			SSHKey:       selectedSSHKeyName,
-			Quantity:     1,
-		})
-
-		s.Stop()
-		if err != nil {
-			fmt.Println(ui.ErrorStyle.Render("✗ Order creation failed: " + err.Error()))
-			return err
-		}
-		fmt.Println(ui.SuccessStyle.Render("✓ Order created"))
-
-		// Stage 2 - Payment processing
-		s = spinner.New(spinner.CharSets[14], 100*time.Millisecond)
-		s.Suffix = " Processing payment..."
-		s.Start()
-
-		// Check invoice status
-		if deployResp.Invoice.Status != "paid" {
-			s.Stop()
-			errorMsg := fmt.Sprintf("✗ Payment failed: %s", deployResp.Invoice.Status)
-			fmt.Println(ui.ErrorStyle.Render(errorMsg))
-			return fmt.Errorf("payment failed: %s. No instance was created", deployResp.Invoice.Status)
-		}
-
-		s.Stop()
-		fmt.Println(ui.SuccessStyle.Render("✓ Payment processed"))
-
-		// Stage 3 - Provisioning server with granular updates
-		instance, err = pollForProvisioningWithProgress(client, hostname, 12*time.Minute)
-
-		if err != nil {
-			fmt.Println(ui.ErrorStyle.Render("✗ Provisioning timed out"))
-			fmt.Println("Instance may still be provisioning. Check the web panel.")
-			return err
-		}
-		fmt.Println(ui.SuccessStyle.Render("✓ Server online"))
-	} else {
-		// JSON mode - no progress display
-		deployResp, err = client.CreateDeployOrder(api.DeployRequest{
-			Hostname:     hostname,
-			Region:       selectedRegion.Name,
-			Template:     selectedTemplate.Name,
-			Plan:         selectedPlan.Name,
-			BillingCycle: "monthly",
-			SSHKey:       selectedSSHKeyName,
-			Quantity:     1,
-		})
-		if err != nil {
-			return err
-		}
-
-		// Wait for provisioning
-		instance, err = pollForProvisioning(client, hostname, 12*time.Minute)
-		if err != nil {
-			return err
-		}
+	// Build request and deploy
+	deployReq := api.DeployRequest{
+		Hostname:     hostname,
+		Region:       selectedRegion.Name,
+		Template:     selectedTemplate.Name,
+		Plan:         selectedPlan.Name,
+		BillingCycle: "monthly",
+		SSHKey:       sshKeyName,
+		Quantity:     1,
 	}
 
-	// JSON output mode
+	instance, err := executeDeploy(client, deployReq, hostname, jsonFlag)
+	if err != nil {
+		return err
+	}
+
+	// Output
 	if jsonFlag {
-		output := map[string]string{
-			"hostname": instance.Hostname,
-			"ip":       instance.MainIP,
-			"region":   selectedRegion.Name,
-			"plan":     selectedPlan.Name,
-			"status":   instance.Status,
+		return printJSONResult(instance, selectedRegion, selectedPlan)
+	}
+	displayDeployResult(instance, selectedRegion, selectedPlan)
+	promptSSHConnect(hostname)
+	return nil
+}
+
+// --- Selection helpers ---
+
+func selectTemplate(templates []api.Template, flag string, jsonMode bool) (*api.Template, error) {
+	if flag != "" {
+		tmpl, err := findTemplate(templates, flag)
+		if err != nil {
+			return nil, err
 		}
-		encoder := json.NewEncoder(os.Stdout)
-		encoder.SetIndent("", "  ")
-		return encoder.Encode(output)
+		if tmpl == nil {
+			names := make([]string, len(templates))
+			for i, t := range templates {
+				names[i] = t.Name
+			}
+			return nil, fmt.Errorf("no OS template matching '%s'. Available: %s", flag, strings.Join(names, ", "))
+		}
+		return tmpl, nil
+	}
+	if jsonMode {
+		return nil, fmt.Errorf("JSON mode requires --os flag")
+	}
+	osOptions := make([]string, len(templates))
+	for i, t := range templates {
+		osOptions[i] = t.Name
+	}
+	var selected string
+	prompt := &survey.Select{
+		Message:  "Choose an OS:",
+		Options:  osOptions,
+		PageSize: 15,
+	}
+	if err := survey.AskOne(prompt, &selected); err != nil {
+		return nil, err
+	}
+	tmpl, _ := findTemplate(templates, selected)
+	return tmpl, nil
+}
+
+func selectRegion(regions []api.Region, flag string, jsonMode bool) (*api.Region, error) {
+	if flag != "" {
+		region, err := findRegion(regions, flag)
+		if err != nil {
+			return nil, err
+		}
+		if region == nil {
+			names := make([]string, len(regions))
+			for i, r := range regions {
+				names[i] = r.Name
+			}
+			return nil, fmt.Errorf("no region matching '%s'. Available: %s", flag, strings.Join(names, ", "))
+		}
+		return region, nil
+	}
+	if jsonMode {
+		return nil, fmt.Errorf("JSON mode requires --region flag")
+	}
+	regionOptions := make([]string, len(regions))
+	for i, r := range regions {
+		regionOptions[i] = r.Name
+	}
+	var selected string
+	prompt := &survey.Select{
+		Message:  "Choose a region:",
+		Options:  regionOptions,
+		PageSize: 15,
+	}
+	if err := survey.AskOne(prompt, &selected); err != nil {
+		return nil, err
+	}
+	region, _ := findRegion(regions, selected)
+	return region, nil
+}
+
+func selectPlan(plans []api.Plan, flag string, jsonMode bool) (*api.Plan, error) {
+	if flag != "" {
+		plan := findPlan(plans, flag)
+		if plan == nil {
+			names := make([]string, len(plans))
+			for i, p := range plans {
+				names[i] = p.Name
+			}
+			return nil, fmt.Errorf("no plan matching '%s'. Available: %s", flag, strings.Join(names, ", "))
+		}
+		return plan, nil
+	}
+	if jsonMode {
+		return nil, fmt.Errorf("JSON mode requires --plan flag")
+	}
+	planOptions := make([]string, len(plans))
+	for i, p := range plans {
+		planOptions[i] = fmt.Sprintf("%-12s $%s/mo   %d vCPU, %sGB RAM, %dGB SSD, %sTB BW",
+			p.Name, p.PriceMonthly, p.VCPU, formatRAM(p.RAM), p.Disk, formatBW(p.Bandwidth))
+	}
+	var selected string
+	prompt := &survey.Select{
+		Message:  "Choose a plan:",
+		Options:  planOptions,
+		PageSize: 15,
+	}
+	if err := survey.AskOne(prompt, &selected); err != nil {
+		return nil, err
+	}
+	planName := strings.Fields(selected)[0]
+	return findPlan(plans, planName), nil
+}
+
+func resolveHostname(client *api.Client, flag string) (string, error) {
+	if flag != "" {
+		if err := deploy.Validate(flag); err != nil {
+			return "", fmt.Errorf("invalid hostname: %w", err)
+		}
+		return flag, nil
+	}
+	hostname, err := deploy.Generate(client.CheckHostnameExists)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate hostname: %w", err)
+	}
+	return hostname, nil
+}
+
+func selectSSHKey(client *api.Client, flag string, jsonMode bool) (string, error) {
+	if flag != "" {
+		return flag, nil
+	}
+	sshKeys, err := client.ListSSHKeys()
+	if err != nil || len(sshKeys) == 0 {
+		return "", nil
+	}
+	if len(sshKeys) == 1 {
+		if !jsonMode {
+			fmt.Printf("Using SSH key: %s\n", sshKeys[0].Name)
+		}
+		return sshKeys[0].Name, nil
+	}
+	// Multiple keys
+	if jsonMode {
+		return "", fmt.Errorf("multiple SSH keys found. Use --ssh-key flag to specify which one")
+	}
+	keyOptions := make([]string, len(sshKeys))
+	for i, key := range sshKeys {
+		fingerprint, err := utils.CalculateSSHFingerprint(key.PublicKey)
+		if err != nil {
+			fingerprint = "(error)"
+		}
+		keyOptions[i] = fmt.Sprintf("%s (%s)", key.Name, fingerprint)
+	}
+	var selected string
+	prompt := &survey.Select{
+		Message:  "Choose an SSH key:",
+		Options:  keyOptions,
+		PageSize: 10,
+	}
+	if err := survey.AskOne(prompt, &selected); err != nil {
+		return "", err
+	}
+	return strings.Split(selected, " (")[0], nil
+}
+
+// --- Deploy execution ---
+
+func confirmDeploy(tmpl *api.Template, region *api.Region, plan *api.Plan, hostname string, quote *api.QuoteResponse, pm *api.PaymentMethod) (bool, error) {
+	summary := fmt.Sprintf(`Deploy Summary:
+  OS:       %s
+  Region:   %s
+  Plan:     %s (%d vCPU, %sGB RAM, %dGB SSD)
+  Hostname: %s
+  Price:    $%s/mo
+  Payment:  %s ****%s`,
+		tmpl.Name,
+		region.Name,
+		plan.Name,
+		plan.VCPU,
+		formatRAM(plan.RAM),
+		plan.Disk,
+		hostname,
+		quote.AmountDue,
+		pm.CardType,
+		pm.LastFour)
+
+	fmt.Println("\n" + summary + "\n")
+
+	confirmMsg := fmt.Sprintf("Deploy? (charges $%s to %s ****%s)",
+		quote.AmountDue, pm.CardType, pm.LastFour)
+	var confirmed bool
+	prompt := &survey.Confirm{
+		Message: confirmMsg,
+		Default: true,
+	}
+	if err := survey.AskOne(prompt, &confirmed); err != nil {
+		return false, err
+	}
+	return confirmed, nil
+}
+
+func executeDeploy(client *api.Client, req api.DeployRequest, hostname string, jsonMode bool) (*api.Instance, error) {
+	if jsonMode {
+		_, err := client.CreateDeployOrder(req)
+		if err != nil {
+			return nil, err
+		}
+		return pollForProvisioning(client, hostname, 12*time.Minute)
 	}
 
-	// Determine SSH user for display
+	// Stage 1 - Creating order
+	s := spinner.New(spinner.CharSets[14], 100*time.Millisecond)
+	s.Suffix = " Creating order..."
+	s.Start()
+
+	deployResp, err := client.CreateDeployOrder(req)
+
+	s.Stop()
+	if err != nil {
+		fmt.Println(ui.ErrorStyle.Render("✗ Order creation failed: " + err.Error()))
+		return nil, err
+	}
+	fmt.Println(ui.SuccessStyle.Render("✓ Order created"))
+
+	// Stage 2 - Payment processing
+	s = spinner.New(spinner.CharSets[14], 100*time.Millisecond)
+	s.Suffix = " Processing payment..."
+	s.Start()
+
+	if deployResp.Invoice.Status != "paid" {
+		s.Stop()
+		errorMsg := fmt.Sprintf("✗ Payment failed: %s", deployResp.Invoice.Status)
+		fmt.Println(ui.ErrorStyle.Render(errorMsg))
+		return nil, fmt.Errorf("payment failed: %s. No instance was created", deployResp.Invoice.Status)
+	}
+
+	s.Stop()
+	fmt.Println(ui.SuccessStyle.Render("✓ Payment processed"))
+
+	// Stage 3 - Provisioning with progress
+	instance, err := pollForProvisioningWithProgress(client, hostname, 12*time.Minute)
+	if err != nil {
+		fmt.Println(ui.ErrorStyle.Render("✗ Provisioning timed out"))
+		fmt.Println("Instance may still be provisioning. Check the web panel.")
+		return nil, err
+	}
+	fmt.Println(ui.SuccessStyle.Render("✓ Server online"))
+	return instance, nil
+}
+
+// --- Output helpers ---
+
+func printJSONResult(instance *api.Instance, region *api.Region, plan *api.Plan) error {
+	output := map[string]string{
+		"hostname": instance.Hostname,
+		"ip":       instance.MainIP,
+		"region":   region.Name,
+		"plan":     plan.Name,
+		"status":   instance.Status,
+	}
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetIndent("", "  ")
+	return encoder.Encode(output)
+}
+
+func displayDeployResult(instance *api.Instance, region *api.Region, plan *api.Plan) {
 	sshUser := instance.Template.DefaultUsername
 	if sshUser == "" {
 		sshUser = "root"
 	}
-
-	// Determine password display
 	passwordDisplay := instance.DefaultPassword
 	if passwordDisplay == "" {
 		passwordDisplay = "(check email for password)"
 	}
 
-	// Boxed result card
 	cardContent := fmt.Sprintf(`Instance Deployed Successfully!
 
 Hostname:       %s
@@ -437,8 +456,8 @@ SSH:            ssh %s@%s`,
 		instance.Hostname,
 		instance.MainIP,
 		passwordDisplay,
-		selectedRegion.Name,
-		selectedPlan.Name,
+		region.Name,
+		plan.Name,
 		sshUser,
 		instance.MainIP)
 
@@ -448,67 +467,78 @@ SSH:            ssh %s@%s`,
 		Padding(1, 2)
 
 	fmt.Println("\n" + cardStyle.Render(cardContent) + "\n")
+}
 
-	// SSH prompt
+func promptSSHConnect(hostname string) {
 	var connectNow bool
 	prompt := &survey.Confirm{
 		Message: "Connect now?",
 		Default: true,
 	}
 	if err := survey.AskOne(prompt, &connectNow); err != nil {
-		return err
+		return
 	}
-
 	if connectNow {
-		// Execute SSH command (runSSH uses Run not RunE, call directly)
 		runSSH(sshCmd, []string{hostname})
 	}
-
-	return nil
 }
 
-// Helper functions
+// --- Search helpers ---
 
-func formatRAM(mb int) string {
-	return fmt.Sprintf("%.0f", float64(mb)/1024.0)
-}
-
-func formatBW(gb int) string {
-	return fmt.Sprintf("%.0f", float64(gb)/1000.0)
-}
-
-func findTemplate(templates []api.Template, name string) *api.Template {
+func findTemplate(templates []api.Template, name string) (*api.Template, error) {
 	// Try exact match first (case-insensitive)
 	for i := range templates {
 		if strings.EqualFold(templates[i].Name, name) {
-			return &templates[i]
+			return &templates[i], nil
 		}
 	}
-	// Fall back to substring match
+	// Fall back to substring match — error if ambiguous
 	lowerName := strings.ToLower(name)
+	var matches []*api.Template
 	for i := range templates {
 		if strings.Contains(strings.ToLower(templates[i].Name), lowerName) {
-			return &templates[i]
+			matches = append(matches, &templates[i])
 		}
 	}
-	return nil
+	if len(matches) == 1 {
+		return matches[0], nil
+	}
+	if len(matches) > 1 {
+		names := make([]string, len(matches))
+		for i, m := range matches {
+			names[i] = m.Name
+		}
+		return nil, fmt.Errorf("ambiguous OS template '%s' — matches: %s", name, strings.Join(names, ", "))
+	}
+	return nil, nil
 }
 
-func findRegion(regions []api.Region, name string) *api.Region {
+func findRegion(regions []api.Region, name string) (*api.Region, error) {
 	// Try exact match first (case-insensitive)
 	for i := range regions {
 		if strings.EqualFold(regions[i].Name, name) {
-			return &regions[i]
+			return &regions[i], nil
 		}
 	}
-	// Fall back to substring match
+	// Fall back to substring match — error if ambiguous
 	lowerName := strings.ToLower(name)
+	var matches []*api.Region
 	for i := range regions {
 		if strings.Contains(strings.ToLower(regions[i].Name), lowerName) {
-			return &regions[i]
+			matches = append(matches, &regions[i])
 		}
 	}
-	return nil
+	if len(matches) == 1 {
+		return matches[0], nil
+	}
+	if len(matches) > 1 {
+		names := make([]string, len(matches))
+		for i, m := range matches {
+			names[i] = m.Name
+		}
+		return nil, fmt.Errorf("ambiguous region '%s' — matches: %s", name, strings.Join(names, ", "))
+	}
+	return nil, nil
 }
 
 func findPlan(plans []api.Plan, name string) *api.Plan {
@@ -520,6 +550,8 @@ func findPlan(plans []api.Plan, name string) *api.Plan {
 	return nil
 }
 
+// --- Polling ---
+
 func pollForProvisioning(client *api.Client, hostname string, timeout time.Duration) (*api.Instance, error) {
 	startTime := time.Now()
 	ticker := time.NewTicker(5 * time.Second)
@@ -528,7 +560,6 @@ func pollForProvisioning(client *api.Client, hostname string, timeout time.Durat
 	for {
 		select {
 		case <-ticker.C:
-			// Find instance by hostname in the list
 			instancesResp, err := client.ListInstances(1000, 0)
 			if err != nil {
 				continue
@@ -536,7 +567,6 @@ func pollForProvisioning(client *api.Client, hostname string, timeout time.Durat
 
 			for _, inst := range instancesResp.Results {
 				if inst.Hostname == hostname {
-					// Found the instance — check live power status
 					powerStatus, err := client.GetInstancePowerStatus(inst.InstanceID)
 					if err == nil && powerStatus == "running" {
 						inst.PowerStatus = powerStatus
@@ -546,7 +576,6 @@ func pollForProvisioning(client *api.Client, hostname string, timeout time.Durat
 				}
 			}
 
-			// Check timeout
 			if time.Since(startTime) > timeout {
 				return nil, fmt.Errorf("provisioning timeout exceeded")
 			}
@@ -572,7 +601,6 @@ func pollForProvisioningWithProgress(client *api.Client, hostname string, timeou
 	for {
 		select {
 		case <-ticker.C:
-			// Fetch instances once per tick (reused for both discovery and IP check)
 			instancesResp, err := client.ListInstances(1000, 0)
 			if err != nil {
 				continue
@@ -609,7 +637,6 @@ func pollForProvisioningWithProgress(client *api.Client, hostname string, timeou
 			// Step 2: Poll events for progress updates
 			events, err := client.ListInstanceEvents(instanceID)
 			if err == nil {
-				// Events come newest-first, reverse to print in order
 				for i := len(events) - 1; i >= 0; i-- {
 					ev := events[i]
 					if seenEvents[ev.ID] {
@@ -631,7 +658,7 @@ func pollForProvisioningWithProgress(client *api.Client, hostname string, timeou
 				}
 			}
 
-			// Step 3: Check if IP appeared (reuse instancesResp from above)
+			// Step 3: Check if IP appeared
 			if !ipPrinted {
 				for _, inst := range instancesResp.Results {
 					if inst.InstanceID == instanceID && inst.MainIP != "" {
@@ -648,10 +675,8 @@ func pollForProvisioningWithProgress(client *api.Client, hostname string, timeou
 			// Step 4: Check live power status
 			powerStatus, err := client.GetInstancePowerStatus(instanceID)
 			if err == nil && powerStatus == "running" {
-				// Fetch final instance details
 				inst, err := client.GetInstance(instanceID)
 				if err != nil {
-					// Fallback: return what we can
 					return &api.Instance{
 						InstanceID:  instanceID,
 						Hostname:    hostname,
@@ -662,12 +687,21 @@ func pollForProvisioningWithProgress(client *api.Client, hostname string, timeou
 				return inst, nil
 			}
 
-			// Check timeout
 			if time.Since(startTime) > timeout {
 				return nil, fmt.Errorf("provisioning timeout exceeded")
 			}
 		}
 	}
+}
+
+// --- Utilities ---
+
+func formatRAM(mb int) string {
+	return fmt.Sprintf("%.0f", float64(mb)/1024.0)
+}
+
+func formatBW(gb int) string {
+	return fmt.Sprintf("%.0f", float64(gb)/1000.0)
 }
 
 func mapEventMessage(msg string) string {

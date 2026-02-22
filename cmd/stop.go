@@ -71,7 +71,7 @@ func runStop(cmd *cobra.Command, args []string) {
 		fmt.Printf("Stopping instance %s (%s)...\n", instance.Hostname, instance.MainIP)
 	}
 
-	err = client.StopInstance(instance.InstanceID)
+	err = client.StopInstance(instance.InstanceID, stopForce)
 	if err != nil {
 		exitWithError("Failed to stop instance: %v", err)
 	}

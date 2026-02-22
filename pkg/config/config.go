@@ -157,4 +157,3 @@ func GetOrCreateDeviceID(config *Config) (string, error) {
 
 	return deviceID, nil
 }
-

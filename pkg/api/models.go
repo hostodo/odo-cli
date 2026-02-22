@@ -27,15 +27,15 @@ type User struct {
 
 // Plan represents a VPS plan
 type Plan struct {
-	ID           int     `json:"id"`
-	Name         string  `json:"name"`
-	RAM          int     `json:"ram"`
-	VCPU         int     `json:"vcpu"`
-	Disk         int     `json:"disk"`
-	Bandwidth    int     `json:"bandwidth"`
-	PriceMonthly string  `json:"price_monthly"`
-	Enabled      bool    `json:"show_on_frontend"`
-	OutOfStock   bool    `json:"out_of_stock"`
+	ID           int    `json:"id"`
+	Name         string `json:"name"`
+	RAM          int    `json:"ram"`
+	VCPU         int    `json:"vcpu"`
+	Disk         int    `json:"disk"`
+	Bandwidth    int    `json:"bandwidth"`
+	PriceMonthly string `json:"price_monthly"`
+	Enabled      bool   `json:"show_on_frontend"`
+	OutOfStock   bool   `json:"out_of_stock"`
 }
 
 // Template represents an OS template
@@ -56,32 +56,32 @@ type Node struct {
 
 // Instance represents a VPS instance
 type Instance struct {
-	InstanceID                 string    `json:"instance_id"`
-	Hostname                   string    `json:"hostname"`
-	MainIP                     string    `json:"main_ip"`
-	Status                     string    `json:"status"`
-	PowerStatus                string    `json:"power_status"`
-	AutorenewalEnabled         bool      `json:"autorenewal_enabled"`
-	AutoRenewalPaymentMethod   string    `json:"auto_renewal_payment_method"`
-	IPs                        []string  `json:"ips"`
-	BandwidthUsage             float64   `json:"bandwidth_usage"`
-	RAM                        int       `json:"ram"`
-	VCPU                       int       `json:"vcpu"`
-	Disk                       int       `json:"disk"`
-	Bandwidth                  int       `json:"bandwidth"`
-	IsSuspended                bool      `json:"is_suspended"`
-	SuspensionReason           string    `json:"suspension_reason"`
-	MAC                        string    `json:"mac"`
-	BillingCycle               string    `json:"billing_cycle"`
-	BillingAmount              string    `json:"billing_amount"`
-	NextDueDate                string    `json:"next_due_date"`
-	CreatedAt                  string `json:"created_at"`
-	UpdatedAt                  string `json:"updated_at"`
-	DefaultPassword            string    `json:"default_password"`
-	ProxID                     int       `json:"prox_id"`
-	Plan                       Plan      `json:"plan"`
-	Template                   Template  `json:"template"`
-	Node                       Node      `json:"node"`
+	InstanceID               string   `json:"instance_id"`
+	Hostname                 string   `json:"hostname"`
+	MainIP                   string   `json:"main_ip"`
+	Status                   string   `json:"status"`
+	PowerStatus              string   `json:"power_status"`
+	AutorenewalEnabled       bool     `json:"autorenewal_enabled"`
+	AutoRenewalPaymentMethod string   `json:"auto_renewal_payment_method"`
+	IPs                      []string `json:"ips"`
+	BandwidthUsage           float64  `json:"bandwidth_usage"`
+	RAM                      int      `json:"ram"`
+	VCPU                     int      `json:"vcpu"`
+	Disk                     int      `json:"disk"`
+	Bandwidth                int      `json:"bandwidth"`
+	IsSuspended              bool     `json:"is_suspended"`
+	SuspensionReason         string   `json:"suspension_reason"`
+	MAC                      string   `json:"mac"`
+	BillingCycle             string   `json:"billing_cycle"`
+	BillingAmount            string   `json:"billing_amount"`
+	NextDueDate              string   `json:"next_due_date"`
+	CreatedAt                string   `json:"created_at"`
+	UpdatedAt                string   `json:"updated_at"`
+	DefaultPassword          string   `json:"default_password"`
+	ProxID                   int      `json:"prox_id"`
+	Plan                     Plan     `json:"plan"`
+	Template                 Template `json:"template"`
+	Node                     Node     `json:"node"`
 }
 
 // InstancesResponse represents the paginated instances response

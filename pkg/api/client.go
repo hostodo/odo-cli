@@ -153,4 +153,3 @@ func parseResponse(resp *http.Response, v interface{}) error {
 
 	return nil
 }
-

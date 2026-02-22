@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 
 	"github.com/hostodo/hostodo-cli/pkg/api"
 	"github.com/hostodo/hostodo-cli/pkg/auth"
@@ -129,8 +130,8 @@ func runSSH(cmd *cobra.Command, args []string) {
 	// Print connecting message (to stderr to not interfere with piping)
 	fmt.Fprintf(os.Stderr, "Connecting to %s (%s) as %s...\n", instance.Hostname, instance.MainIP, effectiveSshUser)
 
-	// Try SSH with key-based auth first
-	sshArgs := buildSSHArgs(sshTarget, extraArgs)
+	// Try SSH with key-based auth first (BatchMode makes it fail fast if no keys match)
+	sshArgs := buildSSHArgs(sshTarget, instance.DefaultPassword != "", extraArgs)
 	exitCode := runSSHCommand(sshBinary, sshArgs)
 
 	if exitCode == 0 {
@@ -141,7 +142,19 @@ func runSSH(cmd *cobra.Command, args []string) {
 	if instance.DefaultPassword != "" {
 		sshpassBinary, err := exec.LookPath("sshpass")
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "SSH key auth failed. Install sshpass to use password auth: brew install sshpass\n")
+			fmt.Fprintf(os.Stderr, "SSH key auth failed. Instance has a default password but sshpass is not installed.\n\n")
+			switch runtime.GOOS {
+			case "darwin":
+				fmt.Fprintf(os.Stderr, "Install sshpass:  brew install hudochenkov/sshpass/sshpass\n")
+			case "windows":
+				fmt.Fprintf(os.Stderr, "sshpass is not available on Windows.\n")
+				fmt.Fprintf(os.Stderr, "Use the web console instead: https://console.hostodo.com\n")
+				fmt.Fprintf(os.Stderr, "Or set up SSH keys:         hostodo keys add\n")
+			default:
+				fmt.Fprintf(os.Stderr, "Install sshpass:  sudo apt install sshpass  (Debian/Ubuntu)\n")
+				fmt.Fprintf(os.Stderr, "                  sudo dnf install sshpass  (Fedora/RHEL)\n")
+			}
+			fmt.Fprintf(os.Stderr, "\nOr add an SSH key to skip password auth: hostodo keys add\n")
 			os.Exit(exitCode)
 		}
 
@@ -173,8 +186,13 @@ func runSSH(cmd *cobra.Command, args []string) {
 	os.Exit(exitCode)
 }
 
-func buildSSHArgs(target string, extraArgs []string) []string {
-	args := []string{target}
+func buildSSHArgs(target string, hasPasswordFallback bool, extraArgs []string) []string {
+	var args []string
+	if hasPasswordFallback {
+		// Use BatchMode so SSH fails fast if no keys match, allowing sshpass fallback
+		args = append(args, "-o", "BatchMode=yes", "-o", "ConnectTimeout=10")
+	}
+	args = append(args, target)
 	args = append(args, extraArgs...)
 	return args
 }

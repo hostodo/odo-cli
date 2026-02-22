@@ -32,11 +32,11 @@ func init() {
 
 var (
 	sessionHeaderStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#10B981")).
-		Bold(true)
+				Foreground(lipgloss.Color("#10B981")).
+				Bold(true)
 
 	sessionInfoStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#6B7280"))
+				Foreground(lipgloss.Color("#6B7280"))
 )
 
 func runSessions(cmd *cobra.Command, args []string) {

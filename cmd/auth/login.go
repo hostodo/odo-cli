@@ -45,26 +45,26 @@ func init() {
 // Styles
 var (
 	titleStyle = lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#7C3AED"))
+			Bold(true).
+			Foreground(lipgloss.Color("#7C3AED"))
 
 	codeStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#10B981"))
+			Foreground(lipgloss.Color("#10B981"))
 
 	urlStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#3B82F6")).
-		Underline(true)
+			Foreground(lipgloss.Color("#3B82F6")).
+			Underline(true)
 
 	successStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#10B981")).
-		Bold(true)
+			Foreground(lipgloss.Color("#10B981")).
+			Bold(true)
 
 	warningStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#F59E0B"))
+			Foreground(lipgloss.Color("#F59E0B"))
 
 	errorStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#EF4444")).
-		Bold(true)
+			Foreground(lipgloss.Color("#EF4444")).
+			Bold(true)
 )
 
 // buildVerificationURL appends user_code as query parameter to verification URI

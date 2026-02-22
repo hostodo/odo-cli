@@ -71,7 +71,7 @@ func runRestart(cmd *cobra.Command, args []string) {
 		fmt.Printf("Restarting instance %s (%s)...\n", instance.Hostname, instance.MainIP)
 	}
 
-	err = client.RebootInstance(instance.InstanceID)
+	err = client.RebootInstance(instance.InstanceID, restartForce)
 	if err != nil {
 		exitWithError("Failed to restart instance: %v", err)
 	}

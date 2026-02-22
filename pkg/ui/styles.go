@@ -14,10 +14,10 @@ var (
 	highlightColor = lipgloss.Color("#8B5CF6")
 
 	// Status colors
-	runningColor     = successColor
-	stoppedColor     = dangerColor
+	runningColor      = successColor
+	stoppedColor      = dangerColor
 	provisioningColor = warningColor
-	suspendedColor   = lipgloss.Color("#FF8C00")
+	suspendedColor    = lipgloss.Color("#FF8C00")
 
 	// Table styles
 	HeaderStyle = lipgloss.NewStyle().
