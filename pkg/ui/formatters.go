@@ -4,13 +4,21 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/hostodo/hostodo-cli/pkg/api"
 )
 
-// FormatInstancesJSON formats instances as JSON
+// FormatInstancesJSON formats instances as JSON, redacting sensitive fields
 func FormatInstancesJSON(instances []api.Instance) (string, error) {
-	data, err := json.MarshalIndent(instances, "", "  ")
+	// Redact sensitive fields before serialization
+	sanitized := make([]api.Instance, len(instances))
+	copy(sanitized, instances)
+	for i := range sanitized {
+		sanitized[i].DefaultPassword = ""
+	}
+	data, err := json.MarshalIndent(sanitized, "", "  ")
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal JSON: %w", err)
 	}
@@ -164,7 +172,6 @@ func FormatInstanceDetail(instance *api.Instance) string {
 	// Timestamps
 	sb.WriteString(HeaderStyle.Render("Timeline") + "\n")
 	sb.WriteString(fmt.Sprintf("  Created:      %s\n", instance.CreatedAt))
-	sb.WriteString(fmt.Sprintf("  Updated:      %s\n", instance.UpdatedAt))
 
 	return sb.String()
 }
@@ -178,4 +185,158 @@ func truncate(s string, length int) string {
 		return s[:length]
 	}
 	return s[:length-3] + "..."
+}
+
+// FormatInvoicesTable formats invoices as an ASCII table
+func FormatInvoicesTable(invoices []api.Invoice) string {
+	if len(invoices) == 0 {
+		return "No invoices found"
+	}
+
+	const (
+		invoiceWidth  = 16
+		amountWidth   = 12
+		statusWidth   = 12
+		dueWidth      = 12
+		hostnameWidth = 20
+		ipWidth       = 16
+	)
+
+	var sb strings.Builder
+
+	// Header
+	header := fmt.Sprintf(
+		"%-*s  %*s  %-*s  %-*s  %-*s  %-*s",
+		invoiceWidth, "INVOICE #",
+		amountWidth, "AMOUNT",
+		statusWidth, "STATUS",
+		dueWidth, "DUE DATE",
+		hostnameWidth, "HOSTNAME",
+		ipWidth, "IP ADDRESS",
+	)
+	sb.WriteString(header + "\n")
+	sb.WriteString(strings.Repeat("-", len(header)) + "\n")
+
+	// Rows
+	for _, invoice := range invoices {
+		// Determine status display (check for overdue)
+		statusDisplay := invoice.Status
+		if invoice.Status == "unpaid" && invoice.DueDate != "" {
+			// Parse due date and check if it's past
+			dueDate, err := time.Parse("2006-01-02", invoice.DueDate)
+			if err == nil && time.Now().After(dueDate) {
+				statusDisplay = "Overdue"
+			}
+		}
+
+		// Get hostname and IP from first instance
+		hostname := "-"
+		ipAddress := "-"
+		if len(invoice.Instances) > 0 {
+			if len(invoice.Instances) == 1 {
+				hostname = invoice.Instances[0].Hostname
+				ipAddress = invoice.Instances[0].MainIP
+			} else {
+				// Multiple instances - show comma-separated
+				hostnames := make([]string, len(invoice.Instances))
+				ips := make([]string, len(invoice.Instances))
+				for i, inst := range invoice.Instances {
+					hostnames[i] = inst.Hostname
+					ips[i] = inst.MainIP
+				}
+				hostname = strings.Join(hostnames, ",")
+				ipAddress = strings.Join(ips, ",")
+			}
+		}
+
+		// Format amount with $ prefix
+		amount := "$" + invoice.Subtotal
+
+		row := fmt.Sprintf(
+			"%-*s  %*s  %-*s  %-*s  %-*s  %-*s",
+			invoiceWidth, truncate(invoice.InvoiceNumber, invoiceWidth),
+			amountWidth, amount,
+			statusWidth, truncate(statusDisplay, statusWidth),
+			dueWidth, truncate(invoice.DueDate, dueWidth),
+			hostnameWidth, truncate(hostname, hostnameWidth),
+			ipWidth, truncate(ipAddress, ipWidth),
+		)
+		sb.WriteString(row + "\n")
+	}
+
+	return sb.String()
+}
+
+// FormatPaymentReceipt formats a payment receipt as a styled box
+func FormatPaymentReceipt(invoiceNumber string, amount string, paymentMethod string, confirmationID string) string {
+	now := time.Now().Format("2006-01-02 15:04:05 MST")
+
+	content := fmt.Sprintf(`Payment Successful!
+
+Invoice Number:    %s
+Amount Paid:       $%s USD
+Payment Method:    %s
+Confirmation:      %s
+Date:              %s
+
+View details: https://console.hostodo.com/billing`,
+		invoiceNumber,
+		amount,
+		paymentMethod,
+		confirmationID,
+		now,
+	)
+
+	receiptStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("42")).
+		Padding(1, 2).
+		Width(60)
+
+	return "\n" + receiptStyle.Render(content) + "\n"
+}
+
+// SSHKeyDisplay holds formatted SSH key data for table display
+type SSHKeyDisplay struct {
+	Name        string
+	Fingerprint string
+	CreatedAt   string
+}
+
+// FormatSSHKeysTable formats SSH keys as an ASCII table
+func FormatSSHKeysTable(displayKeys []SSHKeyDisplay) string {
+	if len(displayKeys) == 0 {
+		return "No SSH keys found"
+	}
+
+	const (
+		nameWidth        = 20
+		fingerprintWidth = 50
+		dateWidth        = 12
+	)
+
+	var sb strings.Builder
+
+	// Header
+	header := fmt.Sprintf(
+		"%-*s  %-*s  %-*s",
+		nameWidth, "NAME",
+		fingerprintWidth, "FINGERPRINT",
+		dateWidth, "DATE ADDED",
+	)
+	sb.WriteString(header + "\n")
+	sb.WriteString(strings.Repeat("-", len(header)) + "\n")
+
+	// Rows
+	for _, key := range displayKeys {
+		row := fmt.Sprintf(
+			"%-*s  %-*s  %-*s",
+			nameWidth, truncate(key.Name, nameWidth),
+			fingerprintWidth, truncate(key.Fingerprint, fingerprintWidth),
+			dateWidth, truncate(key.CreatedAt, dateWidth),
+		)
+		sb.WriteString(row + "\n")
+	}
+
+	return sb.String()
 }

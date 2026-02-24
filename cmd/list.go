@@ -1,8 +1,7 @@
-package instances
+package cmd
 
 import (
 	"fmt"
-	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/hostodo/hostodo-cli/pkg/api"
@@ -13,17 +12,18 @@ import (
 )
 
 var (
-	jsonOutput    bool
-	simpleOutput  bool
-	detailsOutput bool
-	limit         int
-	offset        int
+	listJSONOutput    bool
+	listSimpleOutput  bool
+	listDetailsOutput bool
+	listLimit         int
+	listOffset        int
 )
 
 // listCmd represents the list command
 var listCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List all your instances",
+	Use:     "list",
+	Aliases: []string{"ls", "ps"},
+	Short:   "List all your instances",
 	Long: `List all your VPS instances with various output formats.
 
 Output Formats:
@@ -33,20 +33,22 @@ Output Formats:
   • Details (--details)        - Detailed view with all information
 
 Examples:
-  hostodo instances list                    # Interactive TUI
-  hostodo instances list --json             # JSON output
-  hostodo instances list --simple           # Simple table
-  hostodo instances list --details          # Detailed view
-  hostodo instances list --limit 50         # Show 50 instances`,
+  hostodo list                    # Interactive TUI
+  hostodo ls                      # Same as list (Docker-style alias)
+  hostodo ps                      # Same as list (Docker-style alias)
+  hostodo list --json             # JSON output
+  hostodo list --simple           # Simple table
+  hostodo list --details          # Detailed view
+  hostodo list --limit 50         # Show 50 instances`,
 	Run: runList,
 }
 
 func init() {
-	listCmd.Flags().BoolVar(&jsonOutput, "json", false, "Output as JSON")
-	listCmd.Flags().BoolVar(&simpleOutput, "simple", false, "Output as simple table")
-	listCmd.Flags().BoolVar(&detailsOutput, "details", false, "Show detailed information")
-	listCmd.Flags().IntVar(&limit, "limit", 100, "Maximum number of instances to fetch")
-	listCmd.Flags().IntVar(&offset, "offset", 0, "Offset for pagination")
+	listCmd.Flags().BoolVar(&listJSONOutput, "json", false, "Output as JSON")
+	listCmd.Flags().BoolVar(&listSimpleOutput, "simple", false, "Output as simple table")
+	listCmd.Flags().BoolVar(&listDetailsOutput, "details", false, "Show detailed information")
+	listCmd.Flags().IntVar(&listLimit, "limit", 100, "Maximum number of instances to fetch")
+	listCmd.Flags().IntVar(&listOffset, "offset", 0, "Offset for pagination")
 }
 
 func runList(cmd *cobra.Command, args []string) {
@@ -68,7 +70,7 @@ func runList(cmd *cobra.Command, args []string) {
 	}
 
 	// Fetch instances
-	instancesResp, err := client.ListInstances(limit, offset)
+	instancesResp, err := client.ListInstances(listLimit, listOffset)
 	if err != nil {
 		exitWithError("Failed to fetch instances: %v", err)
 	}
@@ -81,20 +83,20 @@ func runList(cmd *cobra.Command, args []string) {
 	}
 
 	// Display based on output format
-	if jsonOutput {
+	if listJSONOutput {
 		// JSON output
 		output, err := ui.FormatInstancesJSON(instancesResp.Results)
 		if err != nil {
 			exitWithError("Failed to format JSON: %v", err)
 		}
 		fmt.Println(output)
-	} else if simpleOutput {
+	} else if listSimpleOutput {
 		// Simple table output
 		fmt.Println() // Add spacing
 		output := ui.FormatInstancesSimpleTable(instancesResp.Results)
 		fmt.Println(output)
 		fmt.Printf("\nTotal: %d instances\n", instancesResp.Count)
-	} else if detailsOutput {
+	} else if listDetailsOutput {
 		// Detailed output
 		fmt.Println() // Add spacing
 		output := ui.FormatInstancesDetailedTable(instancesResp.Results)
@@ -102,14 +104,15 @@ func runList(cmd *cobra.Command, args []string) {
 		fmt.Printf("\nTotal: %d instances\n", instancesResp.Count)
 	} else {
 		// Interactive TUI (default)
-		p := tea.NewProgram(ui.NewTableModel(instancesResp.Results))
-		if _, err := p.Run(); err != nil {
+		p := tea.NewProgram(ui.NewTableModel(instancesResp.Results, client.GetInstancePowerStatus))
+		finalModel, err := p.Run()
+		if err != nil {
 			exitWithError("Failed to run interactive table: %v", err)
+		}
+		// Check if user requested SSH from detail view
+		if tm, ok := finalModel.(ui.TableModel); ok && tm.SSHHostname != "" {
+			runSSH(sshCmd, []string{tm.SSHHostname})
 		}
 	}
 }
 
-func exitWithError(msg string, args ...interface{}) {
-	fmt.Printf("Error: "+msg+"\n", args...)
-	os.Exit(1)
-}

@@ -45,26 +45,26 @@ func init() {
 // Styles
 var (
 	titleStyle = lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#7C3AED"))
+			Bold(true).
+			Foreground(lipgloss.Color("#7C3AED"))
 
 	codeStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#10B981"))
+			Foreground(lipgloss.Color("#10B981"))
 
 	urlStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#3B82F6")).
-		Underline(true)
+			Foreground(lipgloss.Color("#3B82F6")).
+			Underline(true)
 
 	successStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#10B981")).
-		Bold(true)
+			Foreground(lipgloss.Color("#10B981")).
+			Bold(true)
 
 	warningStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#F59E0B"))
+			Foreground(lipgloss.Color("#F59E0B"))
 
 	errorStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#EF4444")).
-		Bold(true)
+			Foreground(lipgloss.Color("#EF4444")).
+			Bold(true)
 )
 
 // buildVerificationURL appends user_code as query parameter to verification URI
@@ -224,11 +224,11 @@ func displayUserCode(userCode string) {
 	fmt.Println("  " + italicStyle.Render("("+formatted+")"))
 }
 
-// formatCodeWithDash formats the 8-char code as XXXX-XXXX
+// formatCodeWithDash formats the 12-char code as XXXX-XXXX-XXXX
 func formatCodeWithDash(code string) string {
 	code = strings.ToUpper(strings.ReplaceAll(code, "-", ""))
-	if len(code) == 8 {
-		return code[:4] + "-" + code[4:]
+	if len(code) == 12 {
+		return code[:4] + "-" + code[4:8] + "-" + code[8:]
 	}
 	return code
 }

@@ -2,8 +2,8 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"github.com/hostodo/hostodo-cli/cmd"
+	"os"
 )
 
 func main() {

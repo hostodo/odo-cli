@@ -18,6 +18,15 @@ const (
 	DetailMode
 )
 
+// PowerStatusFunc fetches power status for an instance ID
+type PowerStatusFunc func(instanceID string) (string, error)
+
+// powerStatusMsg carries the result of a power status fetch
+type powerStatusMsg struct {
+	index  int
+	status string
+}
+
 // TableModel represents the Bubble Tea model for the instances table
 type TableModel struct {
 	table            table.Model
@@ -25,16 +34,17 @@ type TableModel struct {
 	selectedInstance int
 	mode             ViewMode
 	quitting         bool
+	fetchPowerStatus PowerStatusFunc
+	SSHHostname      string // Public: checked by caller after Run() to trigger SSH
 }
 
 // NewTableModel creates a new table model with instances
-func NewTableModel(instances []api.Instance) TableModel {
+func NewTableModel(instances []api.Instance, fetchPower PowerStatusFunc) TableModel {
 	columns := []table.Column{
-		{Title: "ID", Width: 12},
+		{Title: "ID", Width: 16},
 		{Title: "Hostname", Width: 25},
 		{Title: "IP Address", Width: 16},
 		{Title: "Status", Width: 14},
-		{Title: "Power", Width: 12},
 		{Title: "RAM", Width: 10},
 		{Title: "CPU", Width: 6},
 		{Title: "Disk", Width: 8},
@@ -43,11 +53,10 @@ func NewTableModel(instances []api.Instance) TableModel {
 	rows := make([]table.Row, len(instances))
 	for i, instance := range instances {
 		rows[i] = table.Row{
-			truncate(instance.InstanceID, 12),
+			instance.InstanceID,
 			truncate(instance.Hostname, 25),
 			instance.MainIP,
 			instance.Status,
-			instance.PowerStatus,
 			fmt.Sprintf("%d MB", instance.RAM),
 			fmt.Sprintf("%d", instance.VCPU),
 			fmt.Sprintf("%d GB", instance.Disk),
@@ -77,9 +86,10 @@ func NewTableModel(instances []api.Instance) TableModel {
 	t.SetStyles(s)
 
 	return TableModel{
-		table:     t,
-		instances: instances,
-		mode:      ListMode,
+		table:            t,
+		instances:        instances,
+		mode:             ListMode,
+		fetchPowerStatus: fetchPower,
 	}
 }
 
@@ -93,11 +103,16 @@ func (m TableModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
+	case powerStatusMsg:
+		if msg.index < len(m.instances) {
+			m.instances[msg.index].PowerStatus = msg.status
+		}
+		return m, nil
+
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "q", "ctrl+c", "esc":
 			if m.mode == DetailMode {
-				// Go back to list view
 				m.mode = ListMode
 				return m, nil
 			}
@@ -105,54 +120,73 @@ func (m TableModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case "enter":
 			if m.mode == ListMode {
-				// Switch to detail view
 				m.selectedInstance = m.table.Cursor()
 				if m.selectedInstance < len(m.instances) {
 					m.mode = DetailMode
-					return m, nil
+					m.instances[m.selectedInstance].PowerStatus = "loading..."
+					return m, m.fetchPowerStatusCmd(m.selectedInstance)
 				}
 			} else {
-				// Return to list view
 				m.mode = ListMode
 				return m, nil
+			}
+		case "c":
+			if m.mode == DetailMode {
+				m.SSHHostname = m.instances[m.selectedInstance].Hostname
+				m.quitting = true
+				return m, tea.Quit
 			}
 		}
 	}
 
-	// Only update table when in list mode
 	if m.mode == ListMode {
 		m.table, cmd = m.table.Update(msg)
 	}
 	return m, cmd
 }
 
+func (m TableModel) fetchPowerStatusCmd(index int) tea.Cmd {
+	if m.fetchPowerStatus == nil {
+		return nil
+	}
+	instanceID := m.instances[index].InstanceID
+	return func() tea.Msg {
+		status, err := m.fetchPowerStatus(instanceID)
+		if err != nil {
+			status = "unknown"
+		}
+		return powerStatusMsg{index: index, status: status}
+	}
+}
+
 // View renders the table or detail view
 func (m TableModel) View() string {
 	if m.quitting {
-		return ""
+		if m.SSHHostname != "" {
+			// Exiting for SSH — don't render table
+			return ""
+		}
+		// Render the table one last time so it persists in scrollback
+		var sb strings.Builder
+		sb.WriteString(TitleStyle.Render("Hostodo Instances") + "\n\n")
+		sb.WriteString(m.table.View() + "\n")
+		return sb.String()
 	}
 
 	if m.mode == DetailMode {
-		// Show detail view
 		var sb strings.Builder
 		sb.WriteString(FormatInstanceDetail(&m.instances[m.selectedInstance]))
 		sb.WriteString("\n")
-		sb.WriteString(HelpStyle.Render("Press Enter to return to list • q/Esc to quit"))
+		sb.WriteString(HelpStyle.Render("[c] SSH Connect • Enter: back to list • q/Esc: quit"))
 		sb.WriteString("\n")
 		return sb.String()
 	}
 
 	// Show list view
 	var sb strings.Builder
-
-	// Title
 	title := TitleStyle.Render("Hostodo Instances")
 	sb.WriteString(title + "\n\n")
-
-	// Table
 	sb.WriteString(m.table.View() + "\n\n")
-
-	// Help text
 	help := HelpStyle.Render("↑/↓: Navigate • Enter: Details • q: Quit")
 	sb.WriteString(help + "\n")
 

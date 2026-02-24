@@ -31,14 +31,14 @@ func init() {
 
 var (
 	logoutSuccessStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#10B981")).
-		Bold(true)
+				Foreground(lipgloss.Color("#10B981")).
+				Bold(true)
 
 	logoutWarningStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#F59E0B"))
+				Foreground(lipgloss.Color("#F59E0B"))
 
 	logoutInfoStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#6B7280"))
+			Foreground(lipgloss.Color("#6B7280"))
 )
 
 func runLogout(cmd *cobra.Command, args []string) {

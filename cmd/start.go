@@ -1,4 +1,4 @@
-package instances
+package cmd
 
 import (
 	"fmt"
@@ -7,25 +7,30 @@ import (
 	"github.com/hostodo/hostodo-cli/pkg/api"
 	"github.com/hostodo/hostodo-cli/pkg/auth"
 	"github.com/hostodo/hostodo-cli/pkg/config"
+	"github.com/hostodo/hostodo-cli/pkg/resolver"
 	"github.com/spf13/cobra"
 )
 
 // startCmd represents the start command
 var startCmd = &cobra.Command{
-	Use:   "start <instance-id>",
-	Short: "Start a stopped instance",
+	Use:               "start <hostname>",
+	Short:             "Start a stopped instance",
+	ValidArgsFunction: resolver.CompleteHostname,
 	Long: `Start a stopped VPS instance.
 
 This command will power on the instance. The instance must be in a stopped state.
+You can specify the instance by hostname, hostname prefix, or instance ID.
 
 Examples:
-  hostodo instances start abc123`,
+  hostodo start mybox              # Start instance with hostname "mybox"
+  hostodo start my                 # Start if "my" is an unambiguous prefix
+  hostodo start abc123             # Start by instance ID (fallback)`,
 	Args: cobra.ExactArgs(1),
 	Run:  runStart,
 }
 
 func runStart(cmd *cobra.Command, args []string) {
-	instanceID := args[0]
+	identifier := args[0]
 
 	// Load config
 	cfg, err := config.Load()
@@ -44,9 +49,17 @@ func runStart(cmd *cobra.Command, args []string) {
 		exitWithError("Failed to create API client: %v", err)
 	}
 
+	// Resolve hostname to instance
+	result, err := resolver.ResolveInstance(client, identifier)
+	if err != nil {
+		exitWithError("%v", err)
+	}
+
+	instance := result.Instance
+
 	// Start instance
-	fmt.Printf("Starting instance %s...\n", instanceID)
-	err = client.StartInstance(instanceID)
+	fmt.Printf("Starting instance %s (%s)...\n", instance.Hostname, instance.MainIP)
+	err = client.StartInstance(instance.InstanceID)
 	if err != nil {
 		exitWithError("Failed to start instance: %v", err)
 	}
@@ -60,7 +73,7 @@ func runStart(cmd *cobra.Command, args []string) {
 		fmt.Print(".")
 		time.Sleep(1 * time.Second)
 
-		status, err := client.GetInstancePowerStatus(instanceID)
+		status, err := client.GetInstancePowerStatus(instance.InstanceID)
 		if err == nil && status == "running" {
 			fmt.Println()
 			fmt.Println("✓ Instance is now running")

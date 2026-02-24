@@ -5,7 +5,6 @@ import (
 	"os"
 
 	"github.com/hostodo/hostodo-cli/cmd/auth"
-	"github.com/hostodo/hostodo-cli/cmd/instances"
 	"github.com/spf13/cobra"
 )
 
@@ -26,8 +25,8 @@ your Hostodo VPS instances.
 
 Features:
   - Interactive TUI with Bubble Tea
-  - List and manage instances
-  - Control instance power (start/stop/reboot)
+  - Hostname-based instance management
+  - Control instance power (start/stop/restart)
   - Multiple output formats (interactive, JSON, simple table)
   - Secure credential storage in system keychain
 
@@ -36,12 +35,25 @@ Authentication:
   hostodo logout                   # Sign out
   hostodo whoami                   # Show current user
 
+Deployment:
+  hostodo deploy                   # Deploy a new VPS instance
+
+Billing:
+  hostodo invoices                 # List your invoices
+  hostodo pay <invoice-id>         # Pay an invoice
+
+SSH Key Management:
+  hostodo keys list                # List your SSH keys
+  hostodo keys add <name> <key>    # Add a new SSH key
+  hostodo keys remove <name>       # Remove an SSH key
+
 Instance Management:
-  hostodo instances list           # List all your instances
-  hostodo instances get <id>       # Get details about an instance
-  hostodo instances start <id>     # Start an instance
-  hostodo instances stop <id>      # Stop an instance
-  hostodo instances reboot <id>    # Reboot an instance`,
+  hostodo list                     # List all your instances (aliases: ls, ps)
+  hostodo status <hostname>        # Get details about an instance
+  hostodo start <hostname>         # Start an instance
+  hostodo stop <hostname>          # Stop an instance
+  hostodo restart <hostname>       # Restart an instance
+  hostodo ssh <hostname>           # SSH to an instance`,
 	Version: Version,
 }
 
@@ -58,7 +70,28 @@ func init() {
 
 	// Add subcommands
 	rootCmd.AddCommand(auth.AuthCmd)
-	rootCmd.AddCommand(instances.InstancesCmd)
+
+	// Deploy command
+	rootCmd.AddCommand(deployCmd)
+
+	// Billing commands
+	rootCmd.AddCommand(invoicesCmd)
+	rootCmd.AddCommand(payCmd)
+
+	// SSH key management
+	rootCmd.AddCommand(keysCmd)
+
+	// Root-level instance commands
+	rootCmd.AddCommand(listCmd)
+	rootCmd.AddCommand(startCmd)
+	rootCmd.AddCommand(stopCmd)
+	rootCmd.AddCommand(restartCmd)
+	rootCmd.AddCommand(statusCmd)
+	rootCmd.AddCommand(sshCmd)
+	rootCmd.AddCommand(renameCmd)
+
+	// Utility commands
+	rootCmd.AddCommand(completionCmd)
 
 	// Root-level aliases for common auth commands
 	rootCmd.AddCommand(loginAliasCmd)
@@ -68,6 +101,7 @@ func init() {
 	// Global flags
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.hostodo/config.json)")
 	rootCmd.PersistentFlags().String("api-url", "", "API URL (default is https://console.hostodo.com or $HOSTODO_API_URL)")
+	rootCmd.PersistentFlags().MarkHidden("api-url")
 }
 
 // loginAliasCmd is a convenience alias for 'auth login'

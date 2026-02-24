@@ -28,17 +28,17 @@ func init() {
 
 var (
 	whoamiLabelStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#6B7280"))
+				Foreground(lipgloss.Color("#6B7280"))
 
 	whoamiValueStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#10B981")).
-		Bold(true)
+				Foreground(lipgloss.Color("#10B981")).
+				Bold(true)
 
 	whoamiErrorStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#EF4444"))
+				Foreground(lipgloss.Color("#EF4444"))
 
 	whoamiInfoStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#6B7280"))
+			Foreground(lipgloss.Color("#6B7280"))
 )
 
 func runWhoami(cmd *cobra.Command, args []string) {

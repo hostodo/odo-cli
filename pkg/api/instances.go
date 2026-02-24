@@ -1,7 +1,10 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
+	"time"
 )
 
 // ListInstances retrieves all instances for the authenticated user
@@ -29,21 +32,24 @@ func (c *Client) GetInstance(instanceID string) (*Instance, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 
-	// Try to parse as wrapped response first
+	// Read body once, try both unmarshal strategies
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	// Try wrapped format first: {"instance": {...}}
 	var wrappedResp InstanceDetailResponse
-	if err := parseResponse(resp, &wrappedResp); err == nil && wrappedResp.Instance.InstanceID != "" {
+	if err := json.Unmarshal(body, &wrappedResp); err == nil && wrappedResp.Instance.InstanceID != "" {
 		return &wrappedResp.Instance, nil
 	}
 
-	// If that fails, try to parse as direct instance
+	// Try direct format: {...}
 	var instance Instance
-	resp2, err := c.Get(path)
-	if err != nil {
-		return nil, err
-	}
-	if err := parseResponse(resp2, &instance); err != nil {
-		return nil, err
+	if err := json.Unmarshal(body, &instance); err != nil {
+		return nil, fmt.Errorf("failed to parse instance response: %w", err)
 	}
 
 	return &instance, nil
@@ -58,45 +64,78 @@ func (c *Client) GetInstancePowerStatus(instanceID string) (string, error) {
 		return "", err
 	}
 
-	var statusResp PowerStatusResponse
-	if err := parseResponse(resp, &statusResp); err != nil {
+	// API returns {"instance": {..., "power_status": "running"}}
+	var wrappedResp InstanceDetailResponse
+	if err := parseResponse(resp, &wrappedResp); err != nil {
 		return "", err
 	}
 
-	return statusResp.PowerStatus, nil
-}
-
-// ControlInstancePower controls the power state of an instance
-func (c *Client) ControlInstancePower(instanceID, action string) error {
-	path := fmt.Sprintf("/client/instances/%s/power/", instanceID)
-
-	powerReq := PowerControlRequest{
-		Action: action,
-	}
-
-	resp, err := c.Post(path, powerReq)
-	if err != nil {
-		return err
-	}
-
-	if err := parseResponse(resp, nil); err != nil {
-		return err
-	}
-
-	return nil
+	return wrappedResp.Instance.PowerStatus, nil
 }
 
 // StartInstance starts a stopped instance
 func (c *Client) StartInstance(instanceID string) error {
-	return c.ControlInstancePower(instanceID, "start")
+	path := fmt.Sprintf("/client/instances/%s/start/", instanceID)
+	resp, err := c.Post(path, nil)
+	if err != nil {
+		return err
+	}
+	return parseResponse(resp, nil)
 }
 
-// StopInstance stops a running instance
-func (c *Client) StopInstance(instanceID string) error {
-	return c.ControlInstancePower(instanceID, "stop")
+// StopInstance stops a running instance. If force is true, performs an immediate shutdown.
+func (c *Client) StopInstance(instanceID string, force bool) error {
+	path := fmt.Sprintf("/client/instances/%s/stop/", instanceID)
+	var body interface{}
+	if force {
+		body = map[string]bool{"force": true}
+	}
+	resp, err := c.Post(path, body)
+	if err != nil {
+		return err
+	}
+	return parseResponse(resp, nil)
 }
 
-// RebootInstance reboots an instance
-func (c *Client) RebootInstance(instanceID string) error {
-	return c.ControlInstancePower(instanceID, "reboot")
+// ListInstanceEvents retrieves provisioning events for an instance
+func (c *Client) ListInstanceEvents(instanceID string) ([]EventLog, error) {
+	path := fmt.Sprintf("/client/instances/%s/events/", instanceID)
+
+	resp, err := c.Get(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var eventsResp EventsResponse
+	if err := parseResponse(resp, &eventsResp); err != nil {
+		return nil, err
+	}
+
+	return eventsResp.Events, nil
+}
+
+// RenameInstance renames an instance by updating its hostname.
+func (c *Client) RenameInstance(instanceID, newHostname string) error {
+	path := fmt.Sprintf("/client/instances/%s/update_info/", instanceID)
+	body := map[string]string{"hostname": newHostname}
+	resp, err := c.Patch(path, body)
+	if err != nil {
+		return err
+	}
+	return parseResponse(resp, nil)
+}
+
+// RebootInstance reboots an instance. If force is true, performs an immediate reboot.
+// Uses a longer timeout since the backend performs stop+start synchronously.
+func (c *Client) RebootInstance(instanceID string, force bool) error {
+	path := fmt.Sprintf("/client/instances/%s/reboot/", instanceID)
+	var body interface{}
+	if force {
+		body = map[string]bool{"force": true}
+	}
+	resp, err := c.doRequestWithTimeout("POST", path, body, 120*time.Second)
+	if err != nil {
+		return err
+	}
+	return parseResponse(resp, nil)
 }

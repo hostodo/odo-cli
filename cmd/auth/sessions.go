@@ -32,11 +32,11 @@ func init() {
 
 var (
 	sessionHeaderStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#10B981")).
-		Bold(true)
+				Foreground(lipgloss.Color("#10B981")).
+				Bold(true)
 
 	sessionInfoStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#6B7280"))
+				Foreground(lipgloss.Color("#6B7280"))
 )
 
 func runSessions(cmd *cobra.Command, args []string) {
@@ -112,7 +112,7 @@ func formatSessionsTable(sessions []api.CLISession) string {
 			"%-*d  %-*s  %-*s  %-*s  %-*s",
 			idWidth, session.ID,
 			deviceWidth, truncateSession(session.DeviceName, deviceWidth),
-			ipWidth, truncateSession(session.IPAddress, ipWidth),
+			ipWidth, truncateSession(session.LoginIP, ipWidth),
 			createdWidth, formatDate(session.CreatedAt),
 			lastUsedWidth, formatDate(session.LastUsedAt),
 		)
