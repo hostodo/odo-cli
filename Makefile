@@ -1,4 +1,4 @@
-.PHONY: build install clean test release snapshot help
+.PHONY: build install clean test release snapshot release-tag help
 
 # Variables
 BINARY_NAME=hostodo
@@ -63,6 +63,9 @@ release: ## Create a production release with GoReleaser
 release-check: ## Check release configuration
 	@echo "Checking release configuration..."
 	@goreleaser check
+
+release-tag: ## Create next semver tag (BUMP=patch|minor|major, PUSH=1 to push, DRY=1 for preview)
+	@./scripts/release-version.sh $(BUMP) $(if $(PUSH),--push,) $(if $(DRY),--dry-run,)
 
 # Platform-specific builds
 build-linux: ## Build for Linux
