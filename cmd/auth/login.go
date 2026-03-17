@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -138,19 +137,6 @@ func runLogin(cmd *cobra.Command, args []string) {
 		fmt.Println(warningStyle.Render("  ⚠") + " Could not copy to clipboard")
 	}
 
-	// Wait for user confirmation before opening browser
-	fmt.Println()
-	fmt.Print("  Press Enter to open browser (or Ctrl+C to cancel)...")
-	bufio.NewReader(os.Stdin).ReadString('\n')
-
-	// Open browser (with code in URL)
-	if err := browser.OpenURL(verificationURL); err != nil {
-		fmt.Println(warningStyle.Render("  ⚠") + " Could not open browser automatically")
-		fmt.Printf("  Please visit the URL above manually\n")
-	} else {
-		fmt.Println(successStyle.Render("  ✓") + " Browser opened")
-	}
-
 	fmt.Println()
 
 	// Set up context with cancellation
@@ -165,8 +151,8 @@ func runLogin(cmd *cobra.Command, args []string) {
 		cancel()
 	}()
 
-	// Poll for authorization with spinner
-	token, err := pollWithSpinner(ctx, oauthClient, deviceCode)
+	// Poll for authorization with spinner (starts immediately; Enter opens browser)
+	token, err := pollWithSpinner(ctx, oauthClient, deviceCode, verificationURL)
 	if err != nil {
 		if errors.Is(ctx.Err(), context.Canceled) {
 			fmt.Println()
@@ -199,7 +185,7 @@ func runLogin(cmd *cobra.Command, args []string) {
 	fmt.Println(successStyle.Render("✓ Successfully authenticated!"))
 	fmt.Println()
 	fmt.Println("  You can now use the Hostodo CLI.")
-	fmt.Println("  Try: hostodo instances list")
+	fmt.Println("  Try: hostodo list")
 	fmt.Println()
 }
 
@@ -235,10 +221,13 @@ func formatCodeWithDash(code string) string {
 
 // Spinner model for polling
 type spinnerModel struct {
-	spinner spinner.Model
-	done    bool
-	err     error
-	token   *auth.TokenResponse
+	spinner         spinner.Model
+	done            bool
+	err             error
+	token           *auth.TokenResponse
+	verificationURL string
+	browserOpened   bool
+	browserFailed   bool
 }
 
 type pollingDoneMsg struct {
@@ -246,14 +235,19 @@ type pollingDoneMsg struct {
 	err   error
 }
 
-func pollWithSpinner(ctx context.Context, client *auth.DeviceFlowClient, deviceCode *auth.DeviceCodeResponse) (*auth.TokenResponse, error) {
+type browserOpenMsg struct {
+	err error
+}
+
+func pollWithSpinner(ctx context.Context, client *auth.DeviceFlowClient, deviceCode *auth.DeviceCodeResponse, verificationURL string) (*auth.TokenResponse, error) {
 	// Initialize spinner
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
 	m := spinnerModel{
-		spinner: s,
+		spinner:         s,
+		verificationURL: verificationURL,
 	}
 
 	// Create Bubble Tea program
@@ -319,11 +313,25 @@ func (m spinnerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.err = msg.err
 		return m, tea.Quit
 
+	case browserOpenMsg:
+		m.browserOpened = true
+		m.browserFailed = msg.err != nil
+		return m, nil
+
 	case tea.KeyMsg:
-		if msg.Type == tea.KeyCtrlC {
+		switch msg.Type {
+		case tea.KeyCtrlC:
 			m.done = true
 			m.err = context.Canceled
 			return m, tea.Quit
+		case tea.KeyEnter:
+			if !m.browserOpened {
+				url := m.verificationURL
+				return m, func() tea.Msg {
+					err := browser.OpenURL(url)
+					return browserOpenMsg{err: err}
+				}
+			}
 		}
 
 	case spinner.TickMsg:
@@ -339,5 +347,17 @@ func (m spinnerModel) View() string {
 	if m.done {
 		return ""
 	}
-	return fmt.Sprintf("  %s Waiting for authorization...\n", m.spinner.View())
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("  %s Waiting for authorization...\n", m.spinner.View()))
+	sb.WriteString("\n")
+	if m.browserOpened {
+		if m.browserFailed {
+			sb.WriteString(warningStyle.Render("  ⚠") + " Could not open browser automatically\n")
+		} else {
+			sb.WriteString(successStyle.Render("  ✓") + " Browser opened\n")
+		}
+	} else {
+		sb.WriteString("  Press Enter to open browser (or Ctrl+C to cancel)...\n")
+	}
+	return sb.String()
 }

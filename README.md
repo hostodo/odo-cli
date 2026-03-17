@@ -470,6 +470,32 @@ Instance: abc123
   Next Due:     2025-12-08
 ```
 
+## Claude Code
+
+Manage your Hostodo instances directly from [Claude Code](https://claude.ai/code) using natural language.
+
+### Install
+
+```bash
+make install-skill
+```
+
+This copies the skill file to `~/.claude/commands/hostodo.md`.
+
+### Usage
+
+In any Claude Code session, use the `/hostodo` command:
+
+```
+/hostodo list my instances
+/hostodo status my-server
+/hostodo deploy ubuntu in LA
+/hostodo stop my-server
+/hostodo show unpaid invoices
+```
+
+The skill translates your intent into non-interactive CLI commands, confirms destructive actions, and formats output as readable markdown.
+
 ## 🏗️ Development
 
 ### Prerequisites

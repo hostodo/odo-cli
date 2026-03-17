@@ -125,7 +125,7 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 
 	// Quote and payment
 	quote, err := client.GetQuote(api.QuoteRequest{
-		Plan:         selectedPlan.Name,
+		PlanID:       selectedPlan.ID,
 		BillingCycle: "monthly",
 		Quantity:     1,
 	})

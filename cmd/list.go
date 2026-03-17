@@ -78,7 +78,7 @@ func runList(cmd *cobra.Command, args []string) {
 	if len(instancesResp.Results) == 0 {
 		fmt.Println("No instances found.")
 		fmt.Println("\nYou don't have any VPS instances yet.")
-		fmt.Println("Visit https://console.hostodo.com to deploy your first instance!")
+		fmt.Println("Run 'hostodo deploy' to provision your first instance!")
 		return
 	}
 

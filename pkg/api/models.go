@@ -157,7 +157,7 @@ type PaymentMethodsResponse struct {
 
 // QuoteRequest represents a price quote request
 type QuoteRequest struct {
-	Plan         string `json:"plan"`
+	PlanID       int    `json:"plan_id"`
 	BillingCycle string `json:"billing_cycle"`
 	Quantity     int    `json:"quantity"`
 }

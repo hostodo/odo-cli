@@ -1,4 +1,4 @@
-.PHONY: build install clean test release snapshot release-tag help
+.PHONY: build install clean test release snapshot release-tag help install-skill
 
 # Variables
 BINARY_NAME=hostodo
@@ -90,3 +90,9 @@ run: ## Run the CLI
 
 dev: ## Run in development mode (example: make dev ARGS="instances list")
 	@go run . $(ARGS)
+
+install-skill: ## Install Claude Code skill to ~/.claude/commands/
+	@mkdir -p ~/.claude/commands
+	@cp SKILL.md ~/.claude/commands/hostodo.md
+	@echo "Installed: ~/.claude/commands/hostodo.md"
+	@echo "Use /hostodo in Claude Code"
