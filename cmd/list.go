@@ -22,7 +22,7 @@ var (
 // listCmd represents the list command
 var listCmd = &cobra.Command{
 	Use:     "list",
-	Aliases: []string{"ls", "ps"},
+	Aliases: []string{"ls", "ps", "instance", "instances"},
 	Short:   "List all your instances",
 	Long: `List all your VPS instances with various output formats.
 
