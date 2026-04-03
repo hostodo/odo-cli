@@ -27,15 +27,19 @@ type User struct {
 
 // Plan represents a VPS plan
 type Plan struct {
-	ID           int    `json:"id"`
-	Name         string `json:"name"`
-	RAM          int    `json:"ram"`
-	VCPU         int    `json:"vcpu"`
-	Disk         int    `json:"disk"`
-	Bandwidth    int    `json:"bandwidth"`
-	PriceMonthly string `json:"price_monthly"`
-	Enabled      bool   `json:"show_on_frontend"`
-	OutOfStock   bool   `json:"out_of_stock"`
+	ID                int    `json:"id"`
+	Name              string `json:"name"`
+	RAM               int    `json:"ram"`
+	VCPU              int    `json:"vcpu"`
+	Disk              int    `json:"disk"`
+	Bandwidth         int    `json:"bandwidth"`
+	PriceMonthly      string `json:"price_monthly"`
+	PriceAnnually     string `json:"price_annually"`
+	PriceSemiannually string `json:"price_semiannually"`
+	PriceBiennially   string `json:"price_biennially"`
+	PriceTriennially  string `json:"price_triennially"`
+	Enabled           bool   `json:"show_on_frontend"`
+	OutOfStock        bool   `json:"out_of_stock"`
 }
 
 // Template represents an OS template
@@ -157,7 +161,7 @@ type PaymentMethodsResponse struct {
 
 // QuoteRequest represents a price quote request
 type QuoteRequest struct {
-	Plan         string `json:"plan"`
+	PlanID       int    `json:"plan_id"`
 	BillingCycle string `json:"billing_cycle"`
 	Quantity     int    `json:"quantity"`
 }

@@ -21,13 +21,14 @@ import (
 )
 
 var (
-	osFlag       string
-	regionFlag   string
-	planFlag     string
-	hostnameFlag string
-	sshKeyFlag   string
-	yesFlag      bool
-	jsonFlag     bool
+	osFlag           string
+	regionFlag       string
+	planFlag         string
+	hostnameFlag     string
+	sshKeyFlag       string
+	billingCycleFlag string
+	yesFlag          bool
+	jsonFlag         bool
 )
 
 var deployCmd = &cobra.Command{
@@ -63,6 +64,7 @@ func init() {
 	deployCmd.Flags().StringVar(&planFlag, "plan", "", "Plan name (skips plan prompt)")
 	deployCmd.Flags().StringVar(&hostnameFlag, "hostname", "", "Custom hostname (skips auto-generation)")
 	deployCmd.Flags().StringVar(&sshKeyFlag, "ssh-key", "", "SSH key name to use for authentication")
+	deployCmd.Flags().StringVar(&billingCycleFlag, "billing-cycle", "", "Billing cycle (monthly, annually, semiannually, biennially, triennially)")
 	deployCmd.Flags().BoolVarP(&yesFlag, "yes", "y", false, "Skip confirmation prompt")
 	deployCmd.Flags().BoolVar(&jsonFlag, "json", false, "JSON output mode (requires --os, --region, --plan)")
 }
@@ -110,7 +112,21 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	selectedPlan, err := selectPlan(plans, planFlag, jsonFlag)
+	selectedCycle, err := selectBillingCycle(plans, billingCycleFlag, jsonFlag)
+	if err != nil {
+		return err
+	}
+	// Filter plans to only those with pricing for the selected billing cycle
+	var filteredPlans []api.Plan
+	for _, plan := range plans {
+		if planHasPricing(plan, selectedCycle) {
+			filteredPlans = append(filteredPlans, plan)
+		}
+	}
+	if len(filteredPlans) == 0 {
+		return fmt.Errorf("no plans available for %s billing", selectedCycle)
+	}
+	selectedPlan, err := selectPlan(filteredPlans, planFlag, jsonFlag, selectedCycle)
 	if err != nil {
 		return err
 	}
@@ -125,8 +141,8 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 
 	// Quote and payment
 	quote, err := client.GetQuote(api.QuoteRequest{
-		Plan:         selectedPlan.Name,
-		BillingCycle: "monthly",
+		PlanID:       selectedPlan.ID,
+		BillingCycle: selectedCycle,
 		Quantity:     1,
 	})
 	if err != nil {
@@ -143,7 +159,7 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 
 	// Confirmation
 	if !yesFlag && !jsonFlag {
-		confirmed, err := confirmDeploy(selectedTemplate, selectedRegion, selectedPlan, hostname, quote, paymentMethod)
+		confirmed, err := confirmDeploy(selectedTemplate, selectedRegion, selectedPlan, hostname, quote, paymentMethod, selectedCycle)
 		if err != nil {
 			return err
 		}
@@ -159,7 +175,7 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 		Region:          selectedRegion.Name,
 		Template:        selectedTemplate.Name,
 		Plan:            selectedPlan.Name,
-		BillingCycle:    "monthly",
+		BillingCycle:    selectedCycle,
 		SSHKey:          sshKeyName,
 		PaymentMethodID: paymentMethod.PaymentMethodID,
 		Quantity:        1,
@@ -251,7 +267,7 @@ func selectRegion(regions []api.Region, flag string, jsonMode bool) (*api.Region
 	return region, nil
 }
 
-func selectPlan(plans []api.Plan, flag string, jsonMode bool) (*api.Plan, error) {
+func selectPlan(plans []api.Plan, flag string, jsonMode bool, billingCycle string) (*api.Plan, error) {
 	if flag != "" {
 		plan, err := findPlan(plans, flag)
 		if err != nil {
@@ -269,10 +285,12 @@ func selectPlan(plans []api.Plan, flag string, jsonMode bool) (*api.Plan, error)
 	if jsonMode {
 		return nil, fmt.Errorf("JSON mode requires --plan flag")
 	}
+	suffix := billingCycleSuffix(billingCycle)
 	planOptions := make([]string, len(plans))
 	for i, p := range plans {
-		planOptions[i] = fmt.Sprintf("%-12s $%s/mo   %d vCPU, %sGB RAM, %dGB SSD, %sTB BW",
-			p.Name, p.PriceMonthly, p.VCPU, formatRAM(p.RAM), p.Disk, formatBW(p.Bandwidth))
+		price := getPriceForCycle(p, billingCycle)
+		planOptions[i] = fmt.Sprintf("%-12s $%s%s   %d vCPU, %sGB RAM, %dGB SSD, %sTB BW",
+			p.Name, price, suffix, p.VCPU, formatRAM(p.RAM), p.Disk, formatBW(p.Bandwidth))
 	}
 	var selected string
 	prompt := &survey.Select{
@@ -342,13 +360,15 @@ func selectSSHKey(client *api.Client, flag string, jsonMode bool) (string, error
 
 // --- Deploy execution ---
 
-func confirmDeploy(tmpl *api.Template, region *api.Region, plan *api.Plan, hostname string, quote *api.QuoteResponse, pm *api.PaymentMethod) (bool, error) {
+func confirmDeploy(tmpl *api.Template, region *api.Region, plan *api.Plan, hostname string, quote *api.QuoteResponse, pm *api.PaymentMethod, billingCycle string) (bool, error) {
+	suffix := billingCycleSuffix(billingCycle)
 	summary := fmt.Sprintf(`Deploy Summary:
   OS:       %s
   Region:   %s
   Plan:     %s (%d vCPU, %sGB RAM, %dGB SSD)
+  Billing:  %s
   Hostname: %s
-  Price:    $%s/mo
+  Price:    $%s%s
   Payment:  %s ****%s`,
 		tmpl.Name,
 		region.Name,
@@ -356,8 +376,10 @@ func confirmDeploy(tmpl *api.Template, region *api.Region, plan *api.Plan, hostn
 		plan.VCPU,
 		formatRAM(plan.RAM),
 		plan.Disk,
+		billingCycleLabel(billingCycle),
 		hostname,
 		quote.AmountDue,
+		suffix,
 		pm.CardType,
 		pm.LastFour)
 
@@ -737,6 +759,120 @@ func formatRAM(mb int) string {
 
 func formatBW(gb int) string {
 	return fmt.Sprintf("%.0f", float64(gb)/1000.0)
+}
+
+// --- Billing cycle helpers ---
+
+func selectBillingCycle(plans []api.Plan, flag string, jsonMode bool) (string, error) {
+	allCycles := []string{"monthly", "annually", "semiannually", "biennially", "triennially"}
+	var availableCycles []string
+	for _, cycle := range allCycles {
+		for _, plan := range plans {
+			if planHasPricing(plan, cycle) {
+				availableCycles = append(availableCycles, cycle)
+				break
+			}
+		}
+	}
+	if len(availableCycles) == 0 {
+		return "", fmt.Errorf("no billing cycles available for any plan")
+	}
+
+	if flag != "" {
+		for _, c := range availableCycles {
+			if strings.EqualFold(c, flag) {
+				return c, nil
+			}
+		}
+		return "", fmt.Errorf("invalid billing cycle '%s'. Available: %s", flag, strings.Join(availableCycles, ", "))
+	}
+
+	if len(availableCycles) == 1 {
+		if !jsonMode {
+			fmt.Printf("Billing cycle: %s\n", billingCycleLabel(availableCycles[0]))
+		}
+		return availableCycles[0], nil
+	}
+
+	if jsonMode {
+		return "monthly", nil
+	}
+
+	options := make([]string, len(availableCycles))
+	for i, c := range availableCycles {
+		options[i] = billingCycleLabel(c)
+	}
+	var selected string
+	prompt := &survey.Select{
+		Message:  "Choose a billing cycle:",
+		Options:  options,
+		PageSize: 10,
+	}
+	if err := survey.AskOne(prompt, &selected); err != nil {
+		return "", err
+	}
+	for _, c := range availableCycles {
+		if billingCycleLabel(c) == selected {
+			return c, nil
+		}
+	}
+	return availableCycles[0], nil
+}
+
+func getPriceForCycle(plan api.Plan, cycle string) string {
+	switch cycle {
+	case "monthly":
+		return plan.PriceMonthly
+	case "annually":
+		return plan.PriceAnnually
+	case "semiannually":
+		return plan.PriceSemiannually
+	case "biennially":
+		return plan.PriceBiennially
+	case "triennially":
+		return plan.PriceTriennially
+	default:
+		return plan.PriceMonthly
+	}
+}
+
+func planHasPricing(plan api.Plan, cycle string) bool {
+	price := getPriceForCycle(plan, cycle)
+	return price != "" && price != "0.00" && price != "0"
+}
+
+func billingCycleSuffix(cycle string) string {
+	switch cycle {
+	case "monthly":
+		return "/mo"
+	case "annually":
+		return "/yr"
+	case "semiannually":
+		return "/6mo"
+	case "biennially":
+		return "/2yr"
+	case "triennially":
+		return "/3yr"
+	default:
+		return "/mo"
+	}
+}
+
+func billingCycleLabel(cycle string) string {
+	switch cycle {
+	case "monthly":
+		return "Monthly"
+	case "annually":
+		return "Annually"
+	case "semiannually":
+		return "Semi-Annually"
+	case "biennially":
+		return "Biennially"
+	case "triennially":
+		return "Triennially"
+	default:
+		return cycle
+	}
 }
 
 func mapEventMessage(msg string) string {
