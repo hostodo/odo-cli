@@ -421,12 +421,31 @@ func executeDeploy(client *api.Client, req api.DeployRequest, hostname string, j
 	}
 	fmt.Println(ui.SuccessStyle.Render("✓ Order created"))
 
-	// Stage 2 - Payment processing
+	// Stage 2 - Payment processing (poll for Stripe webhook)
 	s = spinner.New(spinner.CharSets[14], 100*time.Millisecond)
 	s.Suffix = " Processing payment..."
 	s.Start()
 
-	if deployResp.Invoice.Status != "paid" {
+	paid := deployResp.Invoice.Status == "paid"
+	if !paid {
+		invoiceNum := deployResp.Invoice.InvoiceNumber
+		deadline := time.Now().Add(15 * time.Second)
+		for time.Now().Before(deadline) && !paid {
+			time.Sleep(2 * time.Second)
+			invoices, err := client.ListInvoices("")
+			if err != nil {
+				continue
+			}
+			for _, inv := range invoices {
+				if inv.InvoiceNumber == invoiceNum && inv.Status == "paid" {
+					paid = true
+					break
+				}
+			}
+		}
+	}
+
+	if !paid {
 		s.Stop()
 		errorMsg := fmt.Sprintf("✗ Payment failed: %s", deployResp.Invoice.Status)
 		fmt.Println(ui.ErrorStyle.Render(errorMsg))
