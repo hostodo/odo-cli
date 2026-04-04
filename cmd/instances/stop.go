@@ -1,4 +1,4 @@
-package cmd
+package instances
 
 import (
 	"fmt"
@@ -11,10 +11,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var stopForce bool
+var instanceStopForce bool
 
-// stopCmd represents the stop command
-var stopCmd = &cobra.Command{
+// StopCmd represents the stop command
+var StopCmd = &cobra.Command{
 	Use:               "stop <hostname>",
 	Short:             "Stop a running instance",
 	ValidArgsFunction: resolver.CompleteHostname,
@@ -24,16 +24,16 @@ This command will gracefully shut down the instance. Use --force for immediate s
 You can specify the instance by hostname, hostname prefix, or instance ID.
 
 Examples:
-  hostodo stop mybox              # Stop instance with hostname "mybox"
-  hostodo stop my                 # Stop if "my" is an unambiguous prefix
-  hostodo stop mybox --force      # Force immediate shutdown
-  hostodo stop abc123             # Stop by instance ID (fallback)`,
+  odo instances stop mybox              # Stop instance with hostname "mybox"
+  odo instances stop my                 # Stop if "my" is an unambiguous prefix
+  odo instances stop mybox --force      # Force immediate shutdown
+  odo instances stop abc123             # Stop by instance ID (fallback)`,
 	Args: cobra.ExactArgs(1),
 	Run:  runStop,
 }
 
 func init() {
-	stopCmd.Flags().BoolVarP(&stopForce, "force", "f", false, "Force immediate shutdown")
+	StopCmd.Flags().BoolVarP(&instanceStopForce, "force", "f", false, "Force immediate shutdown")
 }
 
 func runStop(cmd *cobra.Command, args []string) {
@@ -47,7 +47,7 @@ func runStop(cmd *cobra.Command, args []string) {
 
 	// Check authentication
 	if !auth.IsAuthenticated() {
-		exitWithError("You are not logged in. Please run: hostodo login")
+		exitWithError("You are not logged in. Please run: odo login")
 	}
 
 	// Create API client
@@ -65,13 +65,13 @@ func runStop(cmd *cobra.Command, args []string) {
 	instance := result.Instance
 
 	// Stop instance
-	if stopForce {
+	if instanceStopForce {
 		fmt.Printf("Force stopping instance %s (%s)...\n", instance.Hostname, instance.MainIP)
 	} else {
 		fmt.Printf("Stopping instance %s (%s)...\n", instance.Hostname, instance.MainIP)
 	}
 
-	err = client.StopInstance(instance.InstanceID, stopForce)
+	err = client.StopInstance(instance.InstanceID, instanceStopForce)
 	if err != nil {
 		exitWithError("Failed to stop instance: %v", err)
 	}

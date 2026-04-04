@@ -1,4 +1,4 @@
-package cmd
+package instances
 
 import (
 	"encoding/json"
@@ -31,7 +31,8 @@ var (
 	jsonFlag         bool
 )
 
-var deployCmd = &cobra.Command{
+// DeployCmd represents the deploy command
+var DeployCmd = &cobra.Command{
 	Use:     "deploy",
 	Short:   "Deploy a new VPS instance",
 	Aliases: []string{"new", "create"},
@@ -42,31 +43,31 @@ provisions a new VPS instance. You can use flags to skip interactive prompts.
 
 Examples:
   # Interactive mode (guided prompts)
-  hostodo deploy
+  odo instances deploy
 
   # Skip prompts with flags
-  hostodo deploy --os "Ubuntu 22.04" --region "Los Angeles" --plan KVM-2G
+  odo instances deploy --os "Ubuntu 22.04" --region "Los Angeles" --plan KVM-2G
 
   # Custom hostname
-  hostodo deploy --hostname my-server
+  odo instances deploy --hostname my-server
 
   # Skip confirmation
-  hostodo deploy --yes
+  odo instances deploy --yes
 
   # JSON output (requires all selection flags)
-  hostodo deploy --os "Ubuntu 22.04" --region "Los Angeles" --plan KVM-2G --json`,
+  odo instances deploy --os "Ubuntu 22.04" --region "Los Angeles" --plan KVM-2G --json`,
 	RunE: runDeploy,
 }
 
 func init() {
-	deployCmd.Flags().StringVar(&osFlag, "os", "", "OS template name (skips OS prompt)")
-	deployCmd.Flags().StringVar(&regionFlag, "region", "", "Region name (skips region prompt)")
-	deployCmd.Flags().StringVar(&planFlag, "plan", "", "Plan name (skips plan prompt)")
-	deployCmd.Flags().StringVar(&hostnameFlag, "hostname", "", "Custom hostname (skips auto-generation)")
-	deployCmd.Flags().StringVar(&sshKeyFlag, "ssh-key", "", "SSH key name to use for authentication")
-	deployCmd.Flags().StringVar(&billingCycleFlag, "billing-cycle", "", "Billing cycle (monthly, annually, semiannually, biennially, triennially)")
-	deployCmd.Flags().BoolVarP(&yesFlag, "yes", "y", false, "Skip confirmation prompt")
-	deployCmd.Flags().BoolVar(&jsonFlag, "json", false, "JSON output mode (requires --os, --region, --plan)")
+	DeployCmd.Flags().StringVar(&osFlag, "os", "", "OS template name (skips OS prompt)")
+	DeployCmd.Flags().StringVar(&regionFlag, "region", "", "Region name (skips region prompt)")
+	DeployCmd.Flags().StringVar(&planFlag, "plan", "", "Plan name (skips plan prompt)")
+	DeployCmd.Flags().StringVar(&hostnameFlag, "hostname", "", "Custom hostname (skips auto-generation)")
+	DeployCmd.Flags().StringVar(&sshKeyFlag, "ssh-key", "", "SSH key name to use for authentication")
+	DeployCmd.Flags().StringVar(&billingCycleFlag, "billing-cycle", "", "Billing cycle (monthly, annually, semiannually, biennially, triennially)")
+	DeployCmd.Flags().BoolVarP(&yesFlag, "yes", "y", false, "Skip confirmation prompt")
+	DeployCmd.Flags().BoolVar(&jsonFlag, "json", false, "JSON output mode (requires --os, --region, --plan)")
 }
 
 func runDeploy(cmd *cobra.Command, args []string) error {
@@ -79,7 +80,7 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 	if !auth.IsAuthenticated() {
-		return fmt.Errorf("not authenticated. Run 'hostodo login' first")
+		return fmt.Errorf("not authenticated. Run 'odo login' first")
 	}
 	client, err := api.NewClient(cfg)
 	if err != nil {
@@ -545,7 +546,7 @@ func promptSSHConnect(hostname string) {
 		return
 	}
 	if connectNow {
-		// Re-exec as subprocess so os.Exit in runSSH doesn't bypass our deferred cleanup
+		// Re-exec as subprocess so os.Exit in RunSSH doesn't bypass our deferred cleanup
 		binary, err := os.Executable()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)

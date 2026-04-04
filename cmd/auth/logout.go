@@ -21,7 +21,7 @@ This will:
 2. Remove your stored credentials locally
 
 Example:
-  hostodo auth logout`,
+  odo auth logout`,
 	Run: runLogout,
 }
 
@@ -70,6 +70,6 @@ func runLogout(cmd *cobra.Command, args []string) {
 	fmt.Println(logoutSuccessStyle.Render("✓ Successfully logged out"))
 	fmt.Println()
 	fmt.Println(logoutInfoStyle.Render("  Your session has been revoked."))
-	fmt.Println(logoutInfoStyle.Render("  Run 'hostodo login' to authenticate again."))
+	fmt.Println(logoutInfoStyle.Render("  Run 'odo login' to authenticate again."))
 	fmt.Println()
 }

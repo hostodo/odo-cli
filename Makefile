@@ -1,7 +1,7 @@
 .PHONY: build install clean test release snapshot release-tag help
 
 # Variables
-BINARY_NAME=hostodo
+BINARY_NAME=odo
 VERSION?=0.1.0
 BUILD_DIR=dist
 INSTALL_PATH=/usr/local/bin

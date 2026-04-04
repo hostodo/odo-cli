@@ -14,20 +14,23 @@ import (
 )
 
 const (
-	serviceName = "hostodo-cli"
-	accountName = "access-token"
+	serviceName    = "odo-cli"
+	oldServiceName = "hostodo-cli"
+	accountName    = "access-token"
 )
 
 // TokenStore manages CLI token storage
 type TokenStore struct {
-	fallbackPath string
+	fallbackPath    string
+	oldFallbackPath string
 }
 
 // NewTokenStore creates a new token store
 func NewTokenStore() *TokenStore {
 	home, _ := os.UserHomeDir()
 	return &TokenStore{
-		fallbackPath: filepath.Join(home, ".hostodo", "token.enc"),
+		fallbackPath:    filepath.Join(home, ".odo", "token.enc"),
+		oldFallbackPath: filepath.Join(home, ".hostodo", "token.enc"),
 	}
 }
 
@@ -35,8 +38,9 @@ func NewTokenStore() *TokenStore {
 func (s *TokenStore) Save(token string) error {
 	err := keyring.Set(serviceName, accountName, token)
 	if err == nil {
-		// Also delete any fallback file if keychain succeeds
+		// Also delete any fallback files if keychain succeeds
 		os.Remove(s.fallbackPath)
+		os.Remove(s.oldFallbackPath)
 		return nil
 	}
 
@@ -47,21 +51,36 @@ func (s *TokenStore) Save(token string) error {
 
 // Get retrieves token from keychain or fallback file
 func (s *TokenStore) Get() (string, error) {
+	// Try new service name first
 	token, err := keyring.Get(serviceName, accountName)
 	if err == nil {
 		return token, nil
 	}
 
-	// Try fallback file
-	return s.getFromFile()
+	// Try old service name (migration fallback)
+	token, err = keyring.Get(oldServiceName, accountName)
+	if err == nil {
+		return token, nil
+	}
+
+	// Try new fallback file path
+	token, err = s.getFromFile()
+	if err == nil {
+		return token, nil
+	}
+
+	// Try old fallback file path
+	return s.getFromOldFile()
 }
 
 // Delete removes token from keychain and fallback file
 func (s *TokenStore) Delete() error {
-	// Delete from keychain (ignore error if not found)
+	// Delete from both keychain service names (ignore errors if not found)
 	keyring.Delete(serviceName, accountName)
-	// Delete fallback file (ignore error if not found)
+	keyring.Delete(oldServiceName, accountName)
+	// Delete fallback files (ignore errors if not found)
 	os.Remove(s.fallbackPath)
+	os.Remove(s.oldFallbackPath)
 	return nil
 }
 
@@ -99,9 +118,19 @@ func (s *TokenStore) saveToFile(token string) error {
 	return nil
 }
 
-// getFromFile decrypts and returns token from file
+// getFromFile decrypts and returns token from the new fallback file
 func (s *TokenStore) getFromFile() (string, error) {
-	data, err := os.ReadFile(s.fallbackPath)
+	return s.decryptFile(s.fallbackPath)
+}
+
+// getFromOldFile decrypts and returns token from the old fallback file path
+func (s *TokenStore) getFromOldFile() (string, error) {
+	return s.decryptFile(s.oldFallbackPath)
+}
+
+// decryptFile decrypts and returns token from the given file path
+func (s *TokenStore) decryptFile(path string) (string, error) {
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return "", fmt.Errorf("not authenticated: %w", err)
 	}
@@ -133,7 +162,8 @@ func (s *TokenStore) getFromFile() (string, error) {
 	return string(plaintext), nil
 }
 
-// deriveKey generates encryption key from machine-specific data
+// deriveKey generates encryption key from machine-specific data.
+// NOTE: Keep using "hostodo-cli-" prefix so existing encrypted tokens still decrypt.
 func (s *TokenStore) deriveKey() []byte {
 	hostname, _ := os.Hostname()
 	hash := sha256.Sum256([]byte("hostodo-cli-" + hostname))

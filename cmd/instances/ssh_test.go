@@ -1,4 +1,4 @@
-package cmd
+package instances
 
 import (
 	"reflect"
@@ -18,6 +18,7 @@ func TestBuildSSHArgs_WithPasswordFallback(t *testing.T) {
 	expected := []string{
 		"-o", "BatchMode=yes",
 		"-o", "ConnectTimeout=10",
+		"-o", "StrictHostKeyChecking=accept-new",
 		"root@10.0.0.1",
 	}
 	if !reflect.DeepEqual(args, expected) {
@@ -40,6 +41,7 @@ func TestBuildSSHArgs_PasswordFallbackWithExtraArgs(t *testing.T) {
 	expected := []string{
 		"-o", "BatchMode=yes",
 		"-o", "ConnectTimeout=10",
+		"-o", "StrictHostKeyChecking=accept-new",
 		"root@10.0.0.1",
 		"-D", "1080", "-N",
 	}

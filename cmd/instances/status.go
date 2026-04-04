@@ -1,4 +1,4 @@
-package cmd
+package instances
 
 import (
 	"fmt"
@@ -11,36 +11,36 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var statusJSONOutput bool
+var instanceStatusJSON bool
 
-// statusCmd represents the status command
-var statusCmd = &cobra.Command{
+// StatusCmd represents the status command
+var StatusCmd = &cobra.Command{
 	Use:               "status <hostname>",
 	Short:             "Show detailed instance information",
 	ValidArgsFunction: resolver.CompleteHostname,
 	Long: `Get detailed information about a specific VPS instance.
 
 Displays comprehensive information including:
-  • Basic information (ID, hostname, status)
-  • Network configuration (IPs, MAC address)
-  • Resource allocation (RAM, CPU, Disk, Bandwidth)
-  • Plan and template details
-  • Billing information
-  • Timeline (created, updated)
+  - Basic information (ID, hostname, status)
+  - Network configuration (IPs, MAC address)
+  - Resource allocation (RAM, CPU, Disk, Bandwidth)
+  - Plan and template details
+  - Billing information
+  - Timeline (created, updated)
 
 You can specify the instance by hostname, hostname prefix, or instance ID.
 
 Examples:
-  hostodo status mybox              # Show status for instance "mybox"
-  hostodo status my                 # Show status if "my" is an unambiguous prefix
-  hostodo status mybox --json       # JSON output
-  hostodo status abc123             # Show status by instance ID (fallback)`,
+  odo instances status mybox              # Show status for instance "mybox"
+  odo instances status my                 # Show status if "my" is an unambiguous prefix
+  odo instances status mybox --json       # JSON output
+  odo instances status abc123             # Show status by instance ID (fallback)`,
 	Args: cobra.ExactArgs(1),
 	Run:  runStatus,
 }
 
 func init() {
-	statusCmd.Flags().BoolVar(&statusJSONOutput, "json", false, "Output as JSON")
+	StatusCmd.Flags().BoolVar(&instanceStatusJSON, "json", false, "Output as JSON")
 }
 
 func runStatus(cmd *cobra.Command, args []string) {
@@ -54,7 +54,7 @@ func runStatus(cmd *cobra.Command, args []string) {
 
 	// Check authentication
 	if !auth.IsAuthenticated() {
-		exitWithError("You are not logged in. Please run: hostodo login")
+		exitWithError("You are not logged in. Please run: odo login")
 	}
 
 	// Create API client
@@ -84,7 +84,7 @@ func runStatus(cmd *cobra.Command, args []string) {
 	}
 
 	// Display
-	if statusJSONOutput {
+	if instanceStatusJSON {
 		output, err := ui.FormatInstancesJSON([]api.Instance{*fullInstance})
 		if err != nil {
 			exitWithError("Failed to format JSON: %v", err)

@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -10,8 +11,9 @@ import (
 )
 
 const (
-	configDir  = ".hostodo"
-	configFile = "config.json"
+	configDir    = ".odo"
+	oldConfigDir = ".hostodo"
+	configFile   = "config.json"
 )
 
 // Config represents the CLI configuration
@@ -31,8 +33,81 @@ func GetConfigPath() (string, error) {
 	return configPath, nil
 }
 
+// MigrateConfigDir silently migrates ~/.hostodo/ → ~/.odo/ on first run.
+// Safe to call multiple times — returns nil when nothing needs to be done.
+func MigrateConfigDir() error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil // Non-fatal: skip migration
+	}
+
+	newDir := filepath.Join(home, configDir)
+	oldDir := filepath.Join(home, oldConfigDir)
+
+	// If new dir already exists, nothing to do
+	if _, err := os.Stat(newDir); err == nil {
+		return nil
+	}
+
+	// If old dir doesn't exist, nothing to migrate
+	if _, err := os.Stat(oldDir); os.IsNotExist(err) {
+		return nil
+	}
+
+	// Create new dir
+	if err := os.MkdirAll(newDir, 0700); err != nil {
+		return nil // Non-fatal: skip migration
+	}
+
+	// Copy all files from old dir to new dir
+	entries, err := os.ReadDir(oldDir)
+	if err != nil {
+		return nil // Non-fatal: skip migration
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue // Skip subdirectories
+		}
+		src := filepath.Join(oldDir, entry.Name())
+		dst := filepath.Join(newDir, entry.Name())
+		if err := copyFile(src, dst); err != nil {
+			// Non-fatal: continue with remaining files
+			continue
+		}
+	}
+
+	return nil
+}
+
+// copyFile copies a single file from src to dst, preserving permissions.
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	info, err := in.Stat()
+	if err != nil {
+		return err
+	}
+
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, info.Mode())
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, in)
+	return err
+}
+
 // EnsureConfigDir creates the config directory if it doesn't exist
 func EnsureConfigDir() error {
+	// Silently migrate ~/.hostodo → ~/.odo on first run
+	MigrateConfigDir()
+
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return fmt.Errorf("failed to get user home directory: %w", err)

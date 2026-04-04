@@ -10,7 +10,7 @@ import (
 var completionCmd = &cobra.Command{
 	Use:   "completion [bash|zsh|fish]",
 	Short: "Generate shell completion script",
-	Long: `Generate shell completion scripts for hostodo CLI.
+	Long: `Generate shell completion scripts for odo CLI.
 
 Hostname completions are dynamic — they fetch your instance list and
 auto-complete hostnames as you type.
@@ -18,19 +18,19 @@ auto-complete hostnames as you type.
 To install completions:
 
 Bash:
-  hostodo completion bash > ~/.local/share/bash-completion/completions/hostodo
+  odo completion bash > ~/.local/share/bash-completion/completions/odo
   # Or on macOS with Homebrew:
-  hostodo completion bash > $(brew --prefix)/etc/bash_completion.d/hostodo
+  odo completion bash > $(brew --prefix)/etc/bash_completion.d/odo
 
 Zsh:
-  hostodo completion zsh > "${fpath[1]}/_hostodo"
+  odo completion zsh > "${fpath[1]}/_odo"
   # Or manually:
   mkdir -p ~/.zsh_completions
-  hostodo completion zsh > ~/.zsh_completions/_hostodo
+  odo completion zsh > ~/.zsh_completions/_odo
   # Add to ~/.zshrc: fpath=(~/.zsh_completions $fpath); autoload -Uz compinit && compinit
 
 Fish:
-  hostodo completion fish > ~/.config/fish/completions/hostodo.fish`,
+  odo completion fish > ~/.config/fish/completions/odo.fish`,
 	Args:              cobra.ExactArgs(1),
 	ValidArgsFunction: completeShellType,
 	Run:               runCompletion,

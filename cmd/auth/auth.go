@@ -17,10 +17,10 @@ Commands:
   sessions  List your active CLI sessions
 
 Example:
-  hostodo auth login
-  hostodo auth logout
-  hostodo auth whoami
-  hostodo auth sessions`,
+  odo auth login
+  odo auth logout
+  odo auth whoami
+  odo auth sessions`,
 }
 
 func init() {

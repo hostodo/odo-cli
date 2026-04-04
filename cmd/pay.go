@@ -19,8 +19,8 @@ var payCmd = &cobra.Command{
 	Long: `Pay an invoice using your default payment method.
 
 Example:
-  hostodo pay INV-12345
-  hostodo pay INV-12345 --yes    # Skip confirmation`,
+  odo pay INV-12345
+  odo pay INV-12345 --yes    # Skip confirmation`,
 	Args: cobra.ExactArgs(1),
 	RunE: runPay,
 }
@@ -40,7 +40,7 @@ func runPay(cmd *cobra.Command, args []string) error {
 
 	// Check authentication
 	if !auth.IsAuthenticated() {
-		return fmt.Errorf("not authenticated. Run 'hostodo login' first")
+		return fmt.Errorf("not authenticated. Run 'odo login' first")
 	}
 
 	// Create API client

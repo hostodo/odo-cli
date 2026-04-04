@@ -1,4 +1,4 @@
-package cmd
+package instances
 
 import (
 	"fmt"
@@ -13,9 +13,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var sshUser string
+var instanceSSHUser string
 
-var sshCmd = &cobra.Command{
+// SSHCmd represents the ssh command
+var SSHCmd = &cobra.Command{
 	Use:   "ssh <hostname>",
 	Short: "Connect to an instance via SSH",
 	Long: `Connect to an instance via SSH using the system ssh binary.
@@ -32,28 +33,29 @@ agent forwarding, ProxyJump, and any other ssh features.
 
 Examples:
   # Connect to an instance (auto-detects user from template)
-  hostodo ssh mybox
+  odo instances ssh mybox
 
   # Connect as a specific user
-  hostodo ssh mybox --user ubuntu
-  hostodo ssh mybox -u root
+  odo instances ssh mybox --user ubuntu
+  odo instances ssh mybox -u root
 
   # Pass additional flags to ssh (after --)
-  hostodo ssh mybox -- -L 8080:localhost:8080
-  hostodo ssh mybox -- -D 1080 -N
-  hostodo ssh mybox -- -A -v
+  odo instances ssh mybox -- -L 8080:localhost:8080
+  odo instances ssh mybox -- -D 1080 -N
+  odo instances ssh mybox -- -A -v
 
 Note: Everything after -- is passed directly to the ssh binary.`,
 	Args:              cobra.MinimumNArgs(1),
 	ValidArgsFunction: resolver.CompleteHostname,
-	Run:               runSSH,
+	Run:               RunSSH,
 }
 
 func init() {
-	sshCmd.Flags().StringVarP(&sshUser, "user", "u", "", "SSH user (default: auto-detect from template)")
+	SSHCmd.Flags().StringVarP(&instanceSSHUser, "user", "u", "", "SSH user (default: auto-detect from template)")
 }
 
-func runSSH(cmd *cobra.Command, args []string) {
+// RunSSH is exported so list.go and deploy.go can call it from within the package.
+func RunSSH(cmd *cobra.Command, args []string) {
 	hostname := args[0]
 
 	// Load config
@@ -65,7 +67,7 @@ func runSSH(cmd *cobra.Command, args []string) {
 
 	// Check authentication
 	if !auth.IsAuthenticated() {
-		fmt.Fprintf(os.Stderr, "Error: not authenticated. Run 'hostodo login' first.\n")
+		fmt.Fprintf(os.Stderr, "Error: not authenticated. Run 'odo login' first.\n")
 		os.Exit(1)
 	}
 
@@ -93,12 +95,12 @@ func runSSH(cmd *cobra.Command, args []string) {
 	}
 
 	if powerStatus != "running" {
-		fmt.Fprintf(os.Stderr, "Error: Instance '%s' is stopped. Run 'hostodo start %s' first.\n", hostname, hostname)
+		fmt.Fprintf(os.Stderr, "Error: Instance '%s' is stopped. Run 'odo instances start %s' first.\n", hostname, hostname)
 		os.Exit(1)
 	}
 
 	// Determine SSH user
-	effectiveSshUser := sshUser
+	effectiveSshUser := instanceSSHUser
 	if effectiveSshUser == "" {
 		// Auto-detect from template
 		effectiveSshUser = instance.Template.DefaultUsername
@@ -145,12 +147,12 @@ func runSSH(cmd *cobra.Command, args []string) {
 			case "windows":
 				fmt.Fprintf(os.Stderr, "sshpass is not available on Windows.\n")
 				fmt.Fprintf(os.Stderr, "Use the web console instead: https://console.hostodo.com\n")
-				fmt.Fprintf(os.Stderr, "Or set up SSH keys:         hostodo keys add\n")
+				fmt.Fprintf(os.Stderr, "Or set up SSH keys:         odo keys add\n")
 			default:
 				fmt.Fprintf(os.Stderr, "Install sshpass:  sudo apt install sshpass  (Debian/Ubuntu)\n")
 				fmt.Fprintf(os.Stderr, "                  sudo dnf install sshpass  (Fedora/RHEL)\n")
 			}
-			fmt.Fprintf(os.Stderr, "\nOr add an SSH key to skip password auth: hostodo keys add\n")
+			fmt.Fprintf(os.Stderr, "\nOr add an SSH key to skip password auth: odo keys add\n")
 			os.Exit(exitCode)
 		}
 

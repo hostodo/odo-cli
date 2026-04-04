@@ -24,9 +24,9 @@ SSH keys allow you to authenticate to your VPS instances without passwords.
 Keys can be associated with new instances during deployment.
 
 Examples:
-  hostodo keys list
-  hostodo keys add mykey "ssh-rsa AAAAB3..."
-  hostodo keys remove mykey`,
+  odo keys list
+  odo keys add mykey "ssh-rsa AAAAB3..."
+  odo keys remove mykey`,
 }
 
 var keysListCmd = &cobra.Command{
@@ -45,10 +45,10 @@ The public key can be provided as an argument or read from a file using --file f
 
 Examples:
   # Add key inline
-  hostodo keys add mykey "ssh-rsa AAAAB3NzaC1yc2EAAA... user@host"
+  odo keys add mykey "ssh-rsa AAAAB3NzaC1yc2EAAA... user@host"
 
   # Add key from file
-  hostodo keys add mykey --file ~/.ssh/id_rsa.pub`,
+  odo keys add mykey --file ~/.ssh/id_rsa.pub`,
 	Args: cobra.MinimumNArgs(1),
 	RunE: runKeysAdd,
 }
@@ -77,7 +77,7 @@ func runKeysList(cmd *cobra.Command, args []string) error {
 
 	// Check authentication
 	if !auth.IsAuthenticated() {
-		return fmt.Errorf("not authenticated. Run 'hostodo login' first")
+		return fmt.Errorf("not authenticated. Run 'odo login' first")
 	}
 
 	// Create API client
@@ -94,7 +94,7 @@ func runKeysList(cmd *cobra.Command, args []string) error {
 
 	if len(keys) == 0 {
 		fmt.Println("No SSH keys found.")
-		fmt.Println("Add a key with: hostodo keys add <name> <public-key>")
+		fmt.Println("Add a key with: odo keys add <name> <public-key>")
 		return nil
 	}
 
@@ -159,7 +159,7 @@ func runKeysAdd(cmd *cobra.Command, args []string) error {
 
 	// Check authentication
 	if !auth.IsAuthenticated() {
-		return fmt.Errorf("not authenticated. Run 'hostodo login' first")
+		return fmt.Errorf("not authenticated. Run 'odo login' first")
 	}
 
 	// Create API client
@@ -198,7 +198,7 @@ func runKeysRemove(cmd *cobra.Command, args []string) error {
 
 	// Check authentication
 	if !auth.IsAuthenticated() {
-		return fmt.Errorf("not authenticated. Run 'hostodo login' first")
+		return fmt.Errorf("not authenticated. Run 'odo login' first")
 	}
 
 	// Create API client

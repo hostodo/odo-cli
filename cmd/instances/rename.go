@@ -1,4 +1,4 @@
-package cmd
+package instances
 
 import (
 	"fmt"
@@ -11,8 +11,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// renameCmd represents the rename command
-var renameCmd = &cobra.Command{
+// RenameCmd represents the rename command
+var RenameCmd = &cobra.Command{
 	Use:               "rename <hostname> <new-hostname>",
 	Short:             "Rename an instance",
 	ValidArgsFunction: resolver.CompleteHostname,
@@ -21,9 +21,9 @@ var renameCmd = &cobra.Command{
 You can specify the instance by hostname, hostname prefix, or instance ID.
 
 Examples:
-  hostodo rename mybox newname        # Rename "mybox" to "newname"
-  hostodo rename my newname           # Rename if "my" is an unambiguous prefix
-  hostodo rename abc123 newname       # Rename by instance ID (fallback)`,
+  odo instances rename mybox newname        # Rename "mybox" to "newname"
+  odo instances rename my newname           # Rename if "my" is an unambiguous prefix
+  odo instances rename abc123 newname       # Rename by instance ID (fallback)`,
 	Args: cobra.ExactArgs(2),
 	Run:  runRename,
 }
@@ -45,7 +45,7 @@ func runRename(cmd *cobra.Command, args []string) {
 
 	// Check authentication
 	if !auth.IsAuthenticated() {
-		exitWithError("You are not logged in. Please run: hostodo login")
+		exitWithError("You are not logged in. Please run: odo login")
 	}
 
 	// Create API client

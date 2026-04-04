@@ -18,7 +18,7 @@ var whoamiCmd = &cobra.Command{
 	Long: `Show information about the currently authenticated user.
 
 Example:
-  hostodo whoami`,
+  odo whoami`,
 	Run: runWhoami,
 }
 
@@ -46,7 +46,7 @@ func runWhoami(cmd *cobra.Command, args []string) {
 	if !auth.IsAuthenticated() {
 		fmt.Println(whoamiInfoStyle.Render("Not logged in."))
 		fmt.Println()
-		fmt.Println(whoamiInfoStyle.Render("Run 'hostodo login' to authenticate."))
+		fmt.Println(whoamiInfoStyle.Render("Run 'odo login' to authenticate."))
 		return
 	}
 
@@ -70,7 +70,7 @@ func runWhoami(cmd *cobra.Command, args []string) {
 		if errors.Is(err, api.ErrNotAuthenticated) || errors.Is(err, api.ErrTokenExpired) {
 			fmt.Println(whoamiInfoStyle.Render("Session expired or invalid."))
 			fmt.Println()
-			fmt.Println(whoamiInfoStyle.Render("Run 'hostodo login' to authenticate."))
+			fmt.Println(whoamiInfoStyle.Render("Run 'odo login' to authenticate."))
 			// Clear the invalid token
 			auth.DeleteToken()
 			return

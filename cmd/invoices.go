@@ -22,10 +22,10 @@ By default, shows all invoices. Use --status=unpaid to filter by status.
 
 Examples:
   # List all invoices
-  hostodo invoices
+  odo invoices
 
   # List unpaid invoices only
-  hostodo invoices --status=unpaid`,
+  odo invoices --status=unpaid`,
 	RunE: runInvoices,
 }
 
@@ -42,7 +42,7 @@ func runInvoices(cmd *cobra.Command, args []string) error {
 
 	// Check authentication
 	if !auth.IsAuthenticated() {
-		return fmt.Errorf("not authenticated. Run 'hostodo login' first")
+		return fmt.Errorf("not authenticated. Run 'odo login' first")
 	}
 
 	// Create API client

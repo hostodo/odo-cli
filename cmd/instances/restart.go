@@ -1,4 +1,4 @@
-package cmd
+package instances
 
 import (
 	"fmt"
@@ -11,10 +11,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var restartForce bool
+var instanceRestartForce bool
 
-// restartCmd represents the restart command
-var restartCmd = &cobra.Command{
+// RestartCmd represents the restart command
+var RestartCmd = &cobra.Command{
 	Use:               "restart <hostname>",
 	Short:             "Restart an instance",
 	ValidArgsFunction: resolver.CompleteHostname,
@@ -24,16 +24,16 @@ This command will gracefully restart the instance. Use --force for immediate res
 You can specify the instance by hostname, hostname prefix, or instance ID.
 
 Examples:
-  hostodo restart mybox              # Restart instance with hostname "mybox"
-  hostodo restart my                 # Restart if "my" is an unambiguous prefix
-  hostodo restart mybox --force      # Force immediate restart
-  hostodo restart abc123             # Restart by instance ID (fallback)`,
+  odo instances restart mybox              # Restart instance with hostname "mybox"
+  odo instances restart my                 # Restart if "my" is an unambiguous prefix
+  odo instances restart mybox --force      # Force immediate restart
+  odo instances restart abc123             # Restart by instance ID (fallback)`,
 	Args: cobra.ExactArgs(1),
 	Run:  runRestart,
 }
 
 func init() {
-	restartCmd.Flags().BoolVarP(&restartForce, "force", "f", false, "Force immediate restart")
+	RestartCmd.Flags().BoolVarP(&instanceRestartForce, "force", "f", false, "Force immediate restart")
 }
 
 func runRestart(cmd *cobra.Command, args []string) {
@@ -47,7 +47,7 @@ func runRestart(cmd *cobra.Command, args []string) {
 
 	// Check authentication
 	if !auth.IsAuthenticated() {
-		exitWithError("You are not logged in. Please run: hostodo login")
+		exitWithError("You are not logged in. Please run: odo login")
 	}
 
 	// Create API client
@@ -65,13 +65,13 @@ func runRestart(cmd *cobra.Command, args []string) {
 	instance := result.Instance
 
 	// Restart instance
-	if restartForce {
+	if instanceRestartForce {
 		fmt.Printf("Force restarting instance %s (%s)...\n", instance.Hostname, instance.MainIP)
 	} else {
 		fmt.Printf("Restarting instance %s (%s)...\n", instance.Hostname, instance.MainIP)
 	}
 
-	err = client.RebootInstance(instance.InstanceID, restartForce)
+	err = client.RebootInstance(instance.InstanceID, instanceRestartForce)
 	if err != nil {
 		exitWithError("Failed to restart instance: %v", err)
 	}

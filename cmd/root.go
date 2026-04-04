@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/hostodo/hostodo-cli/cmd/auth"
+	"github.com/hostodo/hostodo-cli/cmd/instances"
 	"github.com/spf13/cobra"
 )
 
@@ -18,42 +19,34 @@ var (
 
 // rootCmd represents the base command
 var rootCmd = &cobra.Command{
-	Use:   "hostodo",
+	Use:   "odo",
 	Short: "Hostodo CLI - Manage your VPS instances from the command line",
-	Long: `Hostodo CLI is a beautiful, interactive command-line interface for managing
-your Hostodo VPS instances.
-
-Features:
-  - Interactive TUI with Bubble Tea
-  - Hostname-based instance management
-  - Control instance power (start/stop/restart)
-  - Multiple output formats (interactive, JSON, simple table)
-  - Secure credential storage in system keychain
+	Long: `odo is the official CLI for managing Hostodo VPS instances.
 
 Authentication:
-  hostodo login                    # Authenticate with your account
-  hostodo logout                   # Sign out
-  hostodo whoami                   # Show current user
+  odo login                        # Authenticate with your account
+  odo logout                       # Sign out
+  odo whoami                       # Show current user
 
-Deployment:
-  hostodo deploy                   # Deploy a new VPS instance
+Instances:
+  odo instances                    # List all instances
+  odo instances deploy             # Deploy a new VPS instance
+  odo instances ssh <hostname>     # SSH to an instance
+  odo instances start <hostname>   # Start an instance
+  odo instances stop <hostname>    # Stop an instance
+  odo instances restart <hostname> # Restart an instance
+  odo instances status <hostname>  # Show instance details
+  odo instances rename <h> <new>   # Rename an instance
+  odo instances reinstall <h>      # Reinstall OS
 
 Billing:
-  hostodo invoices                 # List your invoices
-  hostodo pay <invoice-id>         # Pay an invoice
+  odo invoices                     # List your invoices
+  odo pay <invoice-id>             # Pay an invoice
 
-SSH Key Management:
-  hostodo keys list                # List your SSH keys
-  hostodo keys add <name> <key>    # Add a new SSH key
-  hostodo keys remove <name>       # Remove an SSH key
-
-Instance Management:
-  hostodo list                     # List all your instances (aliases: ls, ps)
-  hostodo status <hostname>        # Get details about an instance
-  hostodo start <hostname>         # Start an instance
-  hostodo stop <hostname>          # Stop an instance
-  hostodo restart <hostname>       # Restart an instance
-  hostodo ssh <hostname>           # SSH to an instance`,
+SSH Keys:
+  odo keys list                    # List your SSH keys
+  odo keys add <name> <key>        # Add a new SSH key
+  odo keys remove <name>           # Remove an SSH key`,
 	Version: Version,
 }
 
@@ -66,13 +59,13 @@ func init() {
 	cobra.OnInitialize(initConfig)
 
 	// Set version template
-	rootCmd.SetVersionTemplate(fmt.Sprintf("hostodo version %s (commit: %s, built: %s)\n", Version, Commit, Date))
+	rootCmd.SetVersionTemplate(fmt.Sprintf("odo version %s (commit: %s, built: %s)\n", Version, Commit, Date))
 
-	// Add subcommands
+	// Auth subcommand group
 	rootCmd.AddCommand(auth.AuthCmd)
 
-	// Deploy command
-	rootCmd.AddCommand(deployCmd)
+	// Instances namespace (primary)
+	rootCmd.AddCommand(instances.InstancesCmd)
 
 	// Billing commands
 	rootCmd.AddCommand(invoicesCmd)
@@ -81,27 +74,63 @@ func init() {
 	// SSH key management
 	rootCmd.AddCommand(keysCmd)
 
-	// Root-level instance commands
-	rootCmd.AddCommand(listCmd)
-	rootCmd.AddCommand(startCmd)
-	rootCmd.AddCommand(stopCmd)
-	rootCmd.AddCommand(restartCmd)
-	rootCmd.AddCommand(statusCmd)
-	rootCmd.AddCommand(sshCmd)
-	rootCmd.AddCommand(renameCmd)
-
 	// Utility commands
 	rootCmd.AddCommand(completionCmd)
 
-	// Root-level aliases for common auth commands
+	// Root-level auth aliases (visible)
 	rootCmd.AddCommand(loginAliasCmd)
 	rootCmd.AddCommand(logoutAliasCmd)
 	rootCmd.AddCommand(whoamiAliasCmd)
 
+	// Hidden root-level shortcuts for instance commands (backward compat)
+	rootCmd.AddCommand(makeHiddenShortcut("list", "ls", "ps", "List all your instances", instances.ListCmd))
+	rootCmd.AddCommand(makeHiddenShortcut("status", "", "", "Show detailed instance information", instances.StatusCmd))
+	rootCmd.AddCommand(makeHiddenShortcut("start", "", "", "Start a stopped instance", instances.StartCmd))
+	rootCmd.AddCommand(makeHiddenShortcut("stop", "", "", "Stop a running instance", instances.StopCmd))
+	rootCmd.AddCommand(makeHiddenShortcut("restart", "", "", "Restart an instance", instances.RestartCmd))
+	rootCmd.AddCommand(makeHiddenShortcut("ssh", "", "", "Connect to an instance via SSH", instances.SSHCmd))
+	rootCmd.AddCommand(makeHiddenShortcut("rename", "", "", "Rename an instance", instances.RenameCmd))
+	rootCmd.AddCommand(makeHiddenShortcut("deploy", "new", "create", "Deploy a new VPS instance", instances.DeployCmd))
+
 	// Global flags
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.hostodo/config.json)")
-	rootCmd.PersistentFlags().String("api-url", "", "API URL (default is https://console.hostodo.com or $HOSTODO_API_URL)")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.odo/config.json)")
+	rootCmd.PersistentFlags().String("api-url", "", "API URL (default is https://api.hostodo.com or $HOSTODO_API_URL)")
 	rootCmd.PersistentFlags().MarkHidden("api-url")
+}
+
+// makeHiddenShortcut creates a hidden root-level shortcut that delegates to the given subcommand.
+// alias1 and alias2 are optional additional aliases (pass "" to skip).
+func makeHiddenShortcut(use, alias1, alias2, short string, target *cobra.Command) *cobra.Command {
+	aliases := []string{}
+	if alias1 != "" {
+		aliases = append(aliases, alias1)
+	}
+	if alias2 != "" {
+		aliases = append(aliases, alias2)
+	}
+	shortcut := &cobra.Command{
+		Use:                use,
+		Aliases:            aliases,
+		Short:              short,
+		Hidden:             true,
+		DisableFlagParsing: false,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Delegate to the instances subcommand's RunE or Run
+			if target.RunE != nil {
+				return target.RunE(cmd, args)
+			}
+			if target.Run != nil {
+				target.Run(cmd, args)
+				return nil
+			}
+			return nil
+		},
+		ValidArgsFunction: target.ValidArgsFunction,
+		Args:              target.Args,
+	}
+	// Copy flags from target so --json, --force, etc. work at root level too
+	shortcut.Flags().AddFlagSet(target.Flags())
+	return shortcut
 }
 
 // loginAliasCmd is a convenience alias for 'auth login'
@@ -110,12 +139,11 @@ var loginAliasCmd = &cobra.Command{
 	Short: "Authenticate with Hostodo (alias for 'auth login')",
 	Long: `Authenticate with your Hostodo account using device flow.
 
-This is a convenience alias for 'hostodo auth login'.
+This is a convenience alias for 'odo auth login'.
 
 Example:
-  hostodo login`,
+  odo login`,
 	Run: func(cmd *cobra.Command, args []string) {
-		// Find and execute the login subcommand directly
 		loginCmd, _, err := auth.AuthCmd.Find([]string{"login"})
 		if err != nil || loginCmd == nil {
 			fmt.Fprintf(os.Stderr, "Error: login command not found\n")
@@ -131,12 +159,11 @@ var logoutAliasCmd = &cobra.Command{
 	Short: "Sign out from Hostodo (alias for 'auth logout')",
 	Long: `Sign out from your Hostodo account.
 
-This is a convenience alias for 'hostodo auth logout'.
+This is a convenience alias for 'odo auth logout'.
 
 Example:
-  hostodo logout`,
+  odo logout`,
 	Run: func(cmd *cobra.Command, args []string) {
-		// Find and execute the logout subcommand directly
 		logoutCmd, _, err := auth.AuthCmd.Find([]string{"logout"})
 		if err != nil || logoutCmd == nil {
 			fmt.Fprintf(os.Stderr, "Error: logout command not found\n")
@@ -152,12 +179,11 @@ var whoamiAliasCmd = &cobra.Command{
 	Short: "Display current logged-in user (alias for 'auth whoami')",
 	Long: `Show information about the currently authenticated user.
 
-This is a convenience alias for 'hostodo auth whoami'.
+This is a convenience alias for 'odo auth whoami'.
 
 Example:
-  hostodo whoami`,
+  odo whoami`,
 	Run: func(cmd *cobra.Command, args []string) {
-		// Find and execute the whoami subcommand directly
 		whoamiCmd, _, err := auth.AuthCmd.Find([]string{"whoami"})
 		if err != nil || whoamiCmd == nil {
 			fmt.Fprintf(os.Stderr, "Error: whoami command not found\n")

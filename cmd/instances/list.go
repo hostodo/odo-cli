@@ -1,4 +1,4 @@
-package cmd
+package instances
 
 import (
 	"fmt"
@@ -12,43 +12,43 @@ import (
 )
 
 var (
-	listJSONOutput    bool
-	listSimpleOutput  bool
-	listDetailsOutput bool
-	listLimit         int
-	listOffset        int
+	instanceListJSON    bool
+	instanceListSimple  bool
+	instanceListDetails bool
+	instanceListLimit   int
+	instanceListOffset  int
 )
 
-// listCmd represents the list command
-var listCmd = &cobra.Command{
+// ListCmd represents the list command
+var ListCmd = &cobra.Command{
 	Use:     "list",
-	Aliases: []string{"ls", "ps", "instance", "instances"},
+	Aliases: []string{"ls", "ps"},
 	Short:   "List all your instances",
 	Long: `List all your VPS instances with various output formats.
 
 Output Formats:
-  • Interactive TUI (default) - Beautiful, scrollable table with keyboard navigation
-  • JSON (--json)              - JSON format for scripting and automation
-  • Simple (--simple)          - Static ASCII table for quick viewing
-  • Details (--details)        - Detailed view with all information
+  - Interactive TUI (default) - Beautiful, scrollable table with keyboard navigation
+  - JSON (--json)              - JSON format for scripting and automation
+  - Simple (--simple)          - Static ASCII table for quick viewing
+  - Details (--details)        - Detailed view with all information
 
 Examples:
-  hostodo list                    # Interactive TUI
-  hostodo ls                      # Same as list (Docker-style alias)
-  hostodo ps                      # Same as list (Docker-style alias)
-  hostodo list --json             # JSON output
-  hostodo list --simple           # Simple table
-  hostodo list --details          # Detailed view
-  hostodo list --limit 50         # Show 50 instances`,
+  odo instances list                    # Interactive TUI
+  odo instances ls                      # Same as list (Docker-style alias)
+  odo instances ps                      # Same as list (Docker-style alias)
+  odo instances list --json             # JSON output
+  odo instances list --simple           # Simple table
+  odo instances list --details          # Detailed view
+  odo instances list --limit 50         # Show 50 instances`,
 	Run: runList,
 }
 
 func init() {
-	listCmd.Flags().BoolVar(&listJSONOutput, "json", false, "Output as JSON")
-	listCmd.Flags().BoolVar(&listSimpleOutput, "simple", false, "Output as simple table")
-	listCmd.Flags().BoolVar(&listDetailsOutput, "details", false, "Show detailed information")
-	listCmd.Flags().IntVar(&listLimit, "limit", 100, "Maximum number of instances to fetch")
-	listCmd.Flags().IntVar(&listOffset, "offset", 0, "Offset for pagination")
+	ListCmd.Flags().BoolVar(&instanceListJSON, "json", false, "Output as JSON")
+	ListCmd.Flags().BoolVar(&instanceListSimple, "simple", false, "Output as simple table")
+	ListCmd.Flags().BoolVar(&instanceListDetails, "details", false, "Show detailed information")
+	ListCmd.Flags().IntVar(&instanceListLimit, "limit", 100, "Maximum number of instances to fetch")
+	ListCmd.Flags().IntVar(&instanceListOffset, "offset", 0, "Offset for pagination")
 }
 
 func runList(cmd *cobra.Command, args []string) {
@@ -60,7 +60,7 @@ func runList(cmd *cobra.Command, args []string) {
 
 	// Check authentication
 	if !auth.IsAuthenticated() {
-		exitWithError("You are not logged in. Please run: hostodo login")
+		exitWithError("You are not logged in. Please run: odo login")
 	}
 
 	// Create API client
@@ -70,7 +70,7 @@ func runList(cmd *cobra.Command, args []string) {
 	}
 
 	// Fetch instances
-	instancesResp, err := client.ListInstances(listLimit, listOffset)
+	instancesResp, err := client.ListInstances(instanceListLimit, instanceListOffset)
 	if err != nil {
 		exitWithError("Failed to fetch instances: %v", err)
 	}
@@ -83,20 +83,20 @@ func runList(cmd *cobra.Command, args []string) {
 	}
 
 	// Display based on output format
-	if listJSONOutput {
+	if instanceListJSON {
 		// JSON output
 		output, err := ui.FormatInstancesJSON(instancesResp.Results)
 		if err != nil {
 			exitWithError("Failed to format JSON: %v", err)
 		}
 		fmt.Println(output)
-	} else if listSimpleOutput {
+	} else if instanceListSimple {
 		// Simple table output
 		fmt.Println() // Add spacing
 		output := ui.FormatInstancesSimpleTable(instancesResp.Results)
 		fmt.Println(output)
 		fmt.Printf("\nTotal: %d instances\n", instancesResp.Count)
-	} else if listDetailsOutput {
+	} else if instanceListDetails {
 		// Detailed output
 		fmt.Println() // Add spacing
 		output := ui.FormatInstancesDetailedTable(instancesResp.Results)
@@ -111,8 +111,7 @@ func runList(cmd *cobra.Command, args []string) {
 		}
 		// Check if user requested SSH from detail view
 		if tm, ok := finalModel.(ui.TableModel); ok && tm.SSHHostname != "" {
-			runSSH(sshCmd, []string{tm.SSHHostname})
+			RunSSH(SSHCmd, []string{tm.SSHHostname})
 		}
 	}
 }
-

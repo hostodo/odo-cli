@@ -1,4 +1,4 @@
-package cmd
+package instances
 
 import (
 	"fmt"
@@ -11,8 +11,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// startCmd represents the start command
-var startCmd = &cobra.Command{
+// StartCmd represents the start command
+var StartCmd = &cobra.Command{
 	Use:               "start <hostname>",
 	Short:             "Start a stopped instance",
 	ValidArgsFunction: resolver.CompleteHostname,
@@ -22,9 +22,9 @@ This command will power on the instance. The instance must be in a stopped state
 You can specify the instance by hostname, hostname prefix, or instance ID.
 
 Examples:
-  hostodo start mybox              # Start instance with hostname "mybox"
-  hostodo start my                 # Start if "my" is an unambiguous prefix
-  hostodo start abc123             # Start by instance ID (fallback)`,
+  odo instances start mybox              # Start instance with hostname "mybox"
+  odo instances start my                 # Start if "my" is an unambiguous prefix
+  odo instances start abc123             # Start by instance ID (fallback)`,
 	Args: cobra.ExactArgs(1),
 	Run:  runStart,
 }
@@ -40,7 +40,7 @@ func runStart(cmd *cobra.Command, args []string) {
 
 	// Check authentication
 	if !auth.IsAuthenticated() {
-		exitWithError("You are not logged in. Please run: hostodo login")
+		exitWithError("You are not logged in. Please run: odo login")
 	}
 
 	// Create API client
@@ -84,3 +84,4 @@ func runStart(cmd *cobra.Command, args []string) {
 	fmt.Println()
 	fmt.Println("⚠ Instance is starting (this may take a few moments)")
 }
+

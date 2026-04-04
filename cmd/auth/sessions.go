@@ -18,11 +18,11 @@ var sessionsCmd = &cobra.Command{
 	Short: "List your active CLI sessions",
 	Long: `Display all active CLI sessions across your devices.
 
-Each session represents a device where you've logged in with 'hostodo login'.
+Each session represents a device where you've logged in with 'odo login'.
 Sessions expire after 90 days of inactivity.
 
 Example:
-  hostodo auth sessions`,
+  odo auth sessions`,
 	Run: runSessions,
 }
 
@@ -42,7 +42,7 @@ var (
 func runSessions(cmd *cobra.Command, args []string) {
 	// Check authentication
 	if !auth.IsAuthenticated() {
-		fmt.Println(sessionInfoStyle.Render("You are not logged in. Run 'hostodo login' first."))
+		fmt.Println(sessionInfoStyle.Render("You are not logged in. Run 'odo login' first."))
 		os.Exit(1)
 	}
 

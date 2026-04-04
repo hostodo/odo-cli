@@ -34,7 +34,7 @@ This will:
 4. Wait for you to authorize
 
 Example:
-  hostodo auth login`,
+  odo auth login`,
 	Run: runLogin,
 }
 
@@ -199,7 +199,7 @@ func runLogin(cmd *cobra.Command, args []string) {
 	fmt.Println(successStyle.Render("✓ Successfully authenticated!"))
 	fmt.Println()
 	fmt.Println("  You can now use the Hostodo CLI.")
-	fmt.Println("  Try: hostodo instances list")
+	fmt.Println("  Try: odo instances list")
 	fmt.Println()
 }
 
