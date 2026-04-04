@@ -85,6 +85,17 @@ brews:
     install: |
       bin.install "odo"
       generate_completions_from_executable(bin/"odo", "completion")
+    caveats: |
+      Shell completions have been installed. To enable them, add the following
+      to your ~/.zshrc (if not already present):
+
+        autoload -Uz compinit && compinit
+
+      Then restart your shell or run: source ~/.zshrc
+
+      For bash, add to ~/.bashrc:
+        [[ -r "$(brew --prefix)/etc/profile.d/bash_completion.sh" ]] && \
+          source "$(brew --prefix)/etc/profile.d/bash_completion.sh"
     test: |
       system "#{bin}/odo", "--version"
 
