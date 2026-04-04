@@ -158,7 +158,7 @@ func runSSH(cmd *cobra.Command, args []string) {
 
 		// Use SSHPASS env var to avoid exposing password in process list
 		sshpassArgs := []string{"-e", sshBinary}
-		sshpassArgs = append(sshpassArgs, "-o", "PubkeyAuthentication=no")
+		sshpassArgs = append(sshpassArgs, "-o", "PubkeyAuthentication=no", "-o", "StrictHostKeyChecking=accept-new")
 		sshpassArgs = append(sshpassArgs, sshTarget)
 		sshpassArgs = append(sshpassArgs, extraArgs...)
 
@@ -185,8 +185,10 @@ func runSSH(cmd *cobra.Command, args []string) {
 func buildSSHArgs(target string, hasPasswordFallback bool, extraArgs []string) []string {
 	var args []string
 	if hasPasswordFallback {
-		// Use BatchMode so SSH fails fast if no keys match, allowing sshpass fallback
-		args = append(args, "-o", "BatchMode=yes", "-o", "ConnectTimeout=10")
+		// Use BatchMode so SSH fails fast if no keys match, allowing sshpass fallback.
+		// accept-new auto-accepts unknown host keys (like fresh deploys) but still
+		// rejects changed keys for security.
+		args = append(args, "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "StrictHostKeyChecking=accept-new")
 	}
 	args = append(args, target)
 	args = append(args, extraArgs...)
