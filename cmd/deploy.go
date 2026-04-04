@@ -112,13 +112,28 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	selectedCycle, err := selectBillingCycle(plans, billingCycleFlag, jsonFlag)
+	// Filter plans by selected region's plan categories
+	regionCategoryIDs := make(map[int]bool)
+	for _, cat := range selectedRegion.PlanCategories {
+		regionCategoryIDs[cat.ID] = true
+	}
+	var regionPlans []api.Plan
+	for _, plan := range plans {
+		if regionCategoryIDs[plan.PlanCategoryID] {
+			regionPlans = append(regionPlans, plan)
+		}
+	}
+	if len(regionPlans) == 0 {
+		return fmt.Errorf("no plans available for region %s", selectedRegion.Name)
+	}
+
+	selectedCycle, err := selectBillingCycle(regionPlans, billingCycleFlag, jsonFlag)
 	if err != nil {
 		return err
 	}
 	// Filter plans to only those with pricing for the selected billing cycle
 	var filteredPlans []api.Plan
-	for _, plan := range plans {
+	for _, plan := range regionPlans {
 		if planHasPricing(plan, selectedCycle) {
 			filteredPlans = append(filteredPlans, plan)
 		}

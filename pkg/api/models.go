@@ -40,6 +40,7 @@ type Plan struct {
 	PriceTriennially  string `json:"price_triennially"`
 	Enabled           bool   `json:"show_on_frontend"`
 	OutOfStock        bool   `json:"out_of_stock"`
+	PlanCategoryID    int    `json:"plan_category_id"`
 }
 
 // Template represents an OS template
@@ -135,12 +136,19 @@ type ErrorResponse struct {
 	Code    int    `json:"code"`
 }
 
+// PlanCategory represents a plan category associated with a region
+type PlanCategory struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
 // Region represents a VPS region/location
 type Region struct {
-	ID          int    `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	OutOfStock  bool   `json:"out_of_stock"`
+	ID             int            `json:"id"`
+	Name           string         `json:"name"`
+	Description    string         `json:"description"`
+	OutOfStock     bool           `json:"out_of_stock"`
+	PlanCategories []PlanCategory `json:"plan_categories"`
 }
 
 // PaymentMethod represents a saved payment method
