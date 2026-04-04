@@ -1,0 +1,85 @@
+[2026-02-20T04:30:04.295Z] Server starting
+{
+  "pid": 18179,
+  "startTime": "2026-02-20T04:30:04.295Z"
+}
+---
+[2026-02-20T04:30:04.302Z] Tools registered
+{
+  "toolCount": 15
+}
+---
+[2026-02-20T04:30:04.303Z] Creating stdio transport
+{}
+---
+[2026-02-20T04:30:05.334Z] Neo4j ready
+{
+  "success": true,
+  "action": "already-running"
+}
+---
+[2026-02-20T04:30:05.334Z] Connecting transport
+{}
+---
+[2026-02-20T04:30:05.342Z] Server connected and ready
+{
+  "pid": 18179
+}
+---
+[2026-02-20T04:30:05.345Z] Server stats [server-ready]
+{
+  "uptime": "1s",
+  "toolCallCount": 0,
+  "lastToolCall": null,
+  "memory": {
+    "heapUsed": "58MB",
+    "heapTotal": "86MB",
+    "rss": "186MB"
+  },
+  "pid": 18179
+}
+---
+[2026-02-20T04:30:05.469Z] Failed to discover schema from graph
+{
+  "gqlStatus": "50N42",
+  "gqlStatusDescription": "error: general processing exception - unexpected error. Expected parameter(s): projectId",
+  "diagnosticRecord": {
+    "OPERATION": "",
+    "OPERATION_CODE": "0",
+    "CURRENT_SCHEMA": "/"
+  },
+  "classification": "UNKNOWN",
+  "name": "Neo4jError",
+  "code": "Neo.ClientError.Statement.ParameterMissing",
+  "retriable": false
+}
+---
+[2026-02-20T04:30:05.469Z] Neo4j schema cached successfully
+{
+  "schemaPath": "/Users/hbazzi/repos/hostodo/hostodo-cli/neo4j-apoc-schema.json"
+}
+---
+[2026-02-20T04:30:08.355Z] Natural Language to Cypher service initialized successfully
+
+---
+[2026-02-21T00:49:06.898Z] Server stats [shutdown-SIGTERM]
+{
+  "uptime": "73143s",
+  "toolCallCount": 0,
+  "lastToolCall": null,
+  "memory": {
+    "heapUsed": "56MB",
+    "heapTotal": "59MB",
+    "rss": "54MB"
+  },
+  "pid": 18179
+}
+---
+[2026-02-21T00:49:06.924Z] SIGHUP received but ignored
+{}
+---
+[2026-02-21T00:49:06.972Z] Shutdown complete
+{
+  "signal": "SIGTERM"
+}
+---

@@ -1,0 +1,91 @@
+{
+  "rawSchema": {
+    "records": [
+      {
+        "keys": [
+          "schema"
+        ],
+        "length": 1,
+        "_fields": [
+          {}
+        ],
+        "_fieldLookup": {
+          "schema": 0
+        }
+      }
+    ],
+    "summary": {
+      "query": {
+        "text": "\n    CALL apoc.meta.schema() YIELD value\n      RETURN value as schema\n    ",
+        "parameters": {}
+      },
+      "queryType": "r",
+      "counters": {
+        "_stats": {
+          "nodesCreated": 0,
+          "nodesDeleted": 0,
+          "relationshipsCreated": 0,
+          "relationshipsDeleted": 0,
+          "propertiesSet": 0,
+          "labelsAdded": 0,
+          "labelsRemoved": 0,
+          "indexesAdded": 0,
+          "indexesRemoved": 0,
+          "constraintsAdded": 0,
+          "constraintsRemoved": 0
+        },
+        "_systemUpdates": 0
+      },
+      "updateStatistics": {
+        "_stats": {
+          "nodesCreated": 0,
+          "nodesDeleted": 0,
+          "relationshipsCreated": 0,
+          "relationshipsDeleted": 0,
+          "propertiesSet": 0,
+          "labelsAdded": 0,
+          "labelsRemoved": 0,
+          "indexesAdded": 0,
+          "indexesRemoved": 0,
+          "constraintsAdded": 0,
+          "constraintsRemoved": 0
+        },
+        "_systemUpdates": 0
+      },
+      "plan": false,
+      "profile": false,
+      "notifications": [],
+      "gqlStatusObjects": [
+        {
+          "gqlStatus": "00000",
+          "statusDescription": "note: successful completion",
+          "diagnosticRecord": {
+            "OPERATION": "",
+            "OPERATION_CODE": "0",
+            "CURRENT_SCHEMA": "/"
+          },
+          "severity": "UNKNOWN",
+          "classification": "UNKNOWN",
+          "isNotification": false
+        }
+      ],
+      "server": {
+        "address": "localhost:7687",
+        "agent": "Neo4j/5.23.0",
+        "protocolVersion": 5.6
+      },
+      "resultConsumedAfter": {
+        "low": 3,
+        "high": 0
+      },
+      "resultAvailableAfter": {
+        "low": 11,
+        "high": 0
+      },
+      "database": {
+        "name": "neo4j"
+      }
+    }
+  },
+  "discoveredSchema": null
+}
