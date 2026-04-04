@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/AlecAivazis/survey/v2"
+	"github.com/charmbracelet/huh"
 	"github.com/hostodo/hostodo-cli/pkg/api"
 	"github.com/hostodo/hostodo-cli/pkg/auth"
 	"github.com/hostodo/hostodo-cli/pkg/config"
@@ -235,11 +235,12 @@ func runKeysRemove(cmd *cobra.Command, args []string) error {
 		}
 
 		var selectedOption string
-		prompt := &survey.Select{
-			Message: "Multiple keys found. Select which to delete:",
-			Options: options,
-		}
-		if err := survey.AskOne(prompt, &selectedOption); err != nil {
+		err = huh.NewSelect[string]().
+			Title("Multiple keys found. Select which to delete:").
+			Options(huh.NewOptions(options...)...).
+			Value(&selectedOption).
+			Run()
+		if err != nil {
 			return err
 		}
 
@@ -265,11 +266,11 @@ func runKeysRemove(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Fingerprint: %s\n", fingerprint)
 
 	var confirmed bool
-	prompt := &survey.Confirm{
-		Message: "Are you sure?",
-		Default: false,
-	}
-	if err := survey.AskOne(prompt, &confirmed); err != nil {
+	err = huh.NewConfirm().
+		Title("Are you sure?").
+		Value(&confirmed).
+		Run()
+	if err != nil {
 		return err
 	}
 

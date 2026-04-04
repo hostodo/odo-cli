@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/briandowns/spinner"
+	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/hostodo/hostodo-cli/pkg/api"
 	"github.com/hostodo/hostodo-cli/pkg/auth"
@@ -220,12 +220,13 @@ func selectTemplate(templates []api.Template, flag string, jsonMode bool) (*api.
 		osOptions[i] = t.Name
 	}
 	var selected string
-	prompt := &survey.Select{
-		Message:  "Choose an OS:",
-		Options:  osOptions,
-		PageSize: 15,
-	}
-	if err := survey.AskOne(prompt, &selected); err != nil {
+	err := huh.NewSelect[string]().
+		Title("Choose an OS:").
+		Options(huh.NewOptions(osOptions...)...).
+		Value(&selected).
+		Height(15).
+		Run()
+	if err != nil {
 		return nil, err
 	}
 	tmpl, _ := findTemplate(templates, selected)
@@ -255,12 +256,13 @@ func selectRegion(regions []api.Region, flag string, jsonMode bool) (*api.Region
 		regionOptions[i] = r.Name
 	}
 	var selected string
-	prompt := &survey.Select{
-		Message:  "Choose a region:",
-		Options:  regionOptions,
-		PageSize: 15,
-	}
-	if err := survey.AskOne(prompt, &selected); err != nil {
+	err := huh.NewSelect[string]().
+		Title("Choose a region:").
+		Options(huh.NewOptions(regionOptions...)...).
+		Value(&selected).
+		Height(15).
+		Run()
+	if err != nil {
 		return nil, err
 	}
 	region, _ := findRegion(regions, selected)
@@ -293,12 +295,13 @@ func selectPlan(plans []api.Plan, flag string, jsonMode bool, billingCycle strin
 			p.Name, price, suffix, p.VCPU, formatRAM(p.RAM), p.Disk, formatBW(p.Bandwidth))
 	}
 	var selected string
-	prompt := &survey.Select{
-		Message:  "Choose a plan:",
-		Options:  planOptions,
-		PageSize: 15,
-	}
-	if err := survey.AskOne(prompt, &selected); err != nil {
+	err := huh.NewSelect[string]().
+		Title("Choose a plan:").
+		Options(huh.NewOptions(planOptions...)...).
+		Value(&selected).
+		Height(15).
+		Run()
+	if err != nil {
 		return nil, err
 	}
 	planName := strings.Fields(selected)[0]
@@ -347,12 +350,13 @@ func selectSSHKey(client *api.Client, flag string, jsonMode bool) (string, error
 		keyOptions[i] = fmt.Sprintf("%s (%s)", key.Name, fingerprint)
 	}
 	var selected string
-	prompt := &survey.Select{
-		Message:  "Choose an SSH key:",
-		Options:  keyOptions,
-		PageSize: 10,
-	}
-	if err := survey.AskOne(prompt, &selected); err != nil {
+	err = huh.NewSelect[string]().
+		Title("Choose an SSH key:").
+		Options(huh.NewOptions(keyOptions...)...).
+		Value(&selected).
+		Height(10).
+		Run()
+	if err != nil {
 		return "", err
 	}
 	return strings.Split(selected, " (")[0], nil
@@ -387,12 +391,12 @@ func confirmDeploy(tmpl *api.Template, region *api.Region, plan *api.Plan, hostn
 
 	confirmMsg := fmt.Sprintf("Deploy? (charges $%s to %s ****%s)",
 		quote.AmountDue, pm.CardType, pm.LastFour)
-	var confirmed bool
-	prompt := &survey.Confirm{
-		Message: confirmMsg,
-		Default: true,
-	}
-	if err := survey.AskOne(prompt, &confirmed); err != nil {
+	confirmed := true
+	err := huh.NewConfirm().
+		Title(confirmMsg).
+		Value(&confirmed).
+		Run()
+	if err != nil {
 		return false, err
 	}
 	return confirmed, nil
@@ -517,12 +521,12 @@ SSH:            ssh %s@%s`,
 }
 
 func promptSSHConnect(hostname string) {
-	var connectNow bool
-	prompt := &survey.Confirm{
-		Message: "Connect now?",
-		Default: true,
-	}
-	if err := survey.AskOne(prompt, &connectNow); err != nil {
+	connectNow := true
+	err := huh.NewConfirm().
+		Title("Connect now?").
+		Value(&connectNow).
+		Run()
+	if err != nil {
 		return
 	}
 	if connectNow {
@@ -822,12 +826,13 @@ func selectBillingCycle(plans []api.Plan, flag string, jsonMode bool) (string, e
 		options[i] = billingCycleLabel(c)
 	}
 	var selected string
-	prompt := &survey.Select{
-		Message:  "Choose a billing cycle:",
-		Options:  options,
-		PageSize: 10,
-	}
-	if err := survey.AskOne(prompt, &selected); err != nil {
+	err := huh.NewSelect[string]().
+		Title("Choose a billing cycle:").
+		Options(huh.NewOptions(options...)...).
+		Value(&selected).
+		Height(10).
+		Run()
+	if err != nil {
 		return "", err
 	}
 	for _, c := range availableCycles {

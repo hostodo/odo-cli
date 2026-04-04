@@ -3,7 +3,7 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/AlecAivazis/survey/v2"
+	"github.com/charmbracelet/huh"
 	"github.com/hostodo/hostodo-cli/pkg/api"
 	"github.com/hostodo/hostodo-cli/pkg/auth"
 	"github.com/hostodo/hostodo-cli/pkg/config"
@@ -53,11 +53,11 @@ func runPay(cmd *cobra.Command, args []string) error {
 	if !payYesFlag {
 		confirmMsg := fmt.Sprintf("Pay invoice %s using your default payment method?", invoiceNumber)
 		var confirmed bool
-		prompt := &survey.Confirm{
-			Message: confirmMsg,
-			Default: false,
-		}
-		if err := survey.AskOne(prompt, &confirmed); err != nil {
+		err = huh.NewConfirm().
+			Title(confirmMsg).
+			Value(&confirmed).
+			Run()
+		if err != nil {
 			return err
 		}
 		if !confirmed {
