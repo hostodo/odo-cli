@@ -2,7 +2,7 @@ package api
 
 // ListPlans retrieves all available VPS plans
 func (c *Client) ListPlans() ([]Plan, error) {
-	path := "/client/plans/"
+	path := "/client/plans/?limit=200"
 
 	resp, err := c.Get(path)
 	if err != nil {
