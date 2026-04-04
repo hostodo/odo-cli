@@ -84,6 +84,7 @@ brews:
     license: "MIT"
     install: |
       bin.install "hostodo"
+      generate_completions_from_executable(bin/"hostodo", "completion")
     test: |
       system "#{bin}/hostodo", "--version"
 
