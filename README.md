@@ -336,4 +336,4 @@ MIT — see LICENSE file for details.
 ## 💬 Support
 
 - Email: support@hostodo.com
-- Documentation: [docs.hostodo.com](https://docs.hostodo.com)
+- Documentation: [docs.hostodo.com](https://hostodo.com/docs/cli)
