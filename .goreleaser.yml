@@ -79,7 +79,7 @@ brews:
       name: homebrew-tap
       token: "{{ .Env.TAP_GITHUB_TOKEN }}"
     directory: Formula
-    homepage: "https://github.com/hostodo/cli"
+    homepage: "https://github.com/hostodo/odo-cli"
     description: "Official CLI for managing Hostodo VPS instances"
     license: "MIT"
     install: |
@@ -102,7 +102,7 @@ brews:
 release:
   github:
     owner: hostodo
-    name: cli
+    name: odo-cli
   draft: false
   prerelease: auto
   name_template: "v{{.Version}}"

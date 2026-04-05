@@ -18,19 +18,19 @@ brew install hostodo/tap/odo
 
 #### Download Binary
 
-Download pre-built binaries from the [releases page](https://github.com/hostodo/cli/releases):
+Download pre-built binaries from the [releases page](https://github.com/hostodo/odo-cli/releases):
 
 ```bash
 # macOS (Apple Silicon)
-curl -L https://github.com/hostodo/cli/releases/latest/download/odo_Darwin_arm64.tar.gz | tar xz
+curl -L https://github.com/hostodo/odo-cli/releases/latest/download/odo_Darwin_arm64.tar.gz | tar xz
 sudo mv odo /usr/local/bin/
 
 # macOS (Intel)
-curl -L https://github.com/hostodo/cli/releases/latest/download/odo_Darwin_x86_64.tar.gz | tar xz
+curl -L https://github.com/hostodo/odo-cli/releases/latest/download/odo_Darwin_x86_64.tar.gz | tar xz
 sudo mv odo /usr/local/bin/
 
 # Linux (amd64)
-curl -L https://github.com/hostodo/cli/releases/latest/download/odo_Linux_x86_64.tar.gz | tar xz
+curl -L https://github.com/hostodo/odo-cli/releases/latest/download/odo_Linux_x86_64.tar.gz | tar xz
 sudo mv odo /usr/local/bin/
 ```
 
@@ -38,19 +38,19 @@ sudo mv odo /usr/local/bin/
 
 ```bash
 # Debian/Ubuntu
-wget https://github.com/hostodo/cli/releases/latest/download/odo_Linux_x86_64.deb
+wget https://github.com/hostodo/odo-cli/releases/latest/download/odo_Linux_x86_64.deb
 sudo dpkg -i odo_Linux_x86_64.deb
 
 # RHEL/CentOS/Fedora
-wget https://github.com/hostodo/cli/releases/latest/download/odo_Linux_x86_64.rpm
+wget https://github.com/hostodo/odo-cli/releases/latest/download/odo_Linux_x86_64.rpm
 sudo rpm -i odo_Linux_x86_64.rpm
 ```
 
 #### From Source
 
 ```bash
-git clone https://github.com/hostodo/cli.git
-cd cli
+git clone https://github.com/hostodo/odo-cli.git
+cd odo-cli
 make install
 ```
 
@@ -285,8 +285,8 @@ odo login
 ### Building from Source
 
 ```bash
-git clone https://github.com/hostodo/cli.git
-cd cli
+git clone https://github.com/hostodo/odo-cli.git
+cd odo-cli
 make build   # → ./odo
 make test
 make dev ARGS="instances list"
