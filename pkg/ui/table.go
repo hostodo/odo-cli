@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/bubbles/table"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/hostodo/hostodo-cli/pkg/api"
@@ -16,6 +17,7 @@ type ViewMode int
 const (
 	ListMode ViewMode = iota
 	DetailMode
+	RenameMode
 )
 
 // PowerStatusFunc fetches power status for an instance ID
@@ -35,7 +37,15 @@ type TableModel struct {
 	mode             ViewMode
 	quitting         bool
 	fetchPowerStatus PowerStatusFunc
-	SSHHostname      string // Public: checked by caller after Run() to trigger SSH
+	// SSHHostname is set when the user requests SSH — checked by caller after Run()
+	SSHHostname string
+	// APIAction is set when the user requests an action — checked by caller after Run()
+	// Values: "start", "stop", "force-stop", "restart", "force-restart", "rename"
+	APIAction      string
+	ActionInstance *api.Instance
+	RenameTarget   string
+	// rename text input
+	renameInput textinput.Model
 }
 
 // NewTableModel creates a new table model with instances
@@ -85,11 +95,16 @@ func NewTableModel(instances []api.Instance, fetchPower PowerStatusFunc) TableMo
 
 	t.SetStyles(s)
 
+	ti := textinput.New()
+	ti.Placeholder = "new-hostname"
+	ti.CharLimit = 63
+
 	return TableModel{
 		table:            t,
 		instances:        instances,
 		mode:             ListMode,
 		fetchPowerStatus: fetchPower,
+		renameInput:      ti,
 	}
 }
 
@@ -110,31 +125,85 @@ func (m TableModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "q", "ctrl+c", "esc":
-			if m.mode == DetailMode {
+		switch m.mode {
+		case RenameMode:
+			switch msg.String() {
+			case "esc":
+				m.mode = DetailMode
+				m.renameInput.Blur()
+				return m, nil
+			case "enter":
+				newName := strings.TrimSpace(m.renameInput.Value())
+				if newName != "" {
+					m.APIAction = "rename"
+					m.ActionInstance = &m.instances[m.selectedInstance]
+					m.RenameTarget = newName
+					m.quitting = true
+					return m, tea.Quit
+				}
+				return m, nil
+			default:
+				m.renameInput, cmd = m.renameInput.Update(msg)
+				return m, cmd
+			}
+
+		case DetailMode:
+			switch msg.String() {
+			case "q", "ctrl+c":
+				m.quitting = true
+				return m, tea.Quit
+			case "esc", "enter":
 				m.mode = ListMode
 				return m, nil
+			case "c":
+				m.SSHHostname = m.instances[m.selectedInstance].Hostname
+				m.quitting = true
+				return m, tea.Quit
+			case "s":
+				m.APIAction = "start"
+				m.ActionInstance = &m.instances[m.selectedInstance]
+				m.quitting = true
+				return m, tea.Quit
+			case "S":
+				m.APIAction = "stop"
+				m.ActionInstance = &m.instances[m.selectedInstance]
+				m.quitting = true
+				return m, tea.Quit
+			case "x":
+				m.APIAction = "force-stop"
+				m.ActionInstance = &m.instances[m.selectedInstance]
+				m.quitting = true
+				return m, tea.Quit
+			case "r":
+				m.APIAction = "restart"
+				m.ActionInstance = &m.instances[m.selectedInstance]
+				m.quitting = true
+				return m, tea.Quit
+			case "R":
+				m.APIAction = "force-restart"
+				m.ActionInstance = &m.instances[m.selectedInstance]
+				m.quitting = true
+				return m, tea.Quit
+			case "n":
+				m.mode = RenameMode
+				m.renameInput.SetValue(m.instances[m.selectedInstance].Hostname)
+				m.renameInput.Focus()
+				m.renameInput.CursorEnd()
+				return m, textinput.Blink
 			}
-			m.quitting = true
-			return m, tea.Quit
-		case "enter":
-			if m.mode == ListMode {
+
+		case ListMode:
+			switch msg.String() {
+			case "q", "ctrl+c", "esc":
+				m.quitting = true
+				return m, tea.Quit
+			case "enter":
 				m.selectedInstance = m.table.Cursor()
 				if m.selectedInstance < len(m.instances) {
 					m.mode = DetailMode
 					m.instances[m.selectedInstance].PowerStatus = "loading..."
 					return m, m.fetchPowerStatusCmd(m.selectedInstance)
 				}
-			} else {
-				m.mode = ListMode
-				return m, nil
-			}
-		case "c":
-			if m.mode == DetailMode {
-				m.SSHHostname = m.instances[m.selectedInstance].Hostname
-				m.quitting = true
-				return m, tea.Quit
 			}
 		}
 	}
@@ -162,8 +231,7 @@ func (m TableModel) fetchPowerStatusCmd(index int) tea.Cmd {
 // View renders the table or detail view
 func (m TableModel) View() string {
 	if m.quitting {
-		if m.SSHHostname != "" {
-			// Exiting for SSH — don't render table
+		if m.SSHHostname != "" || m.APIAction != "" {
 			return ""
 		}
 		// Render the table one last time so it persists in scrollback
@@ -173,11 +241,24 @@ func (m TableModel) View() string {
 		return sb.String()
 	}
 
+	if m.mode == RenameMode {
+		var sb strings.Builder
+		sb.WriteString(FormatInstanceDetail(&m.instances[m.selectedInstance]))
+		sb.WriteString("\n")
+		sb.WriteString(HelpStyle.Render("New hostname:") + "\n")
+		sb.WriteString("  " + m.renameInput.View() + "\n\n")
+		sb.WriteString(HelpStyle.Render("Enter: confirm • Esc: cancel"))
+		sb.WriteString("\n")
+		return sb.String()
+	}
+
 	if m.mode == DetailMode {
 		var sb strings.Builder
 		sb.WriteString(FormatInstanceDetail(&m.instances[m.selectedInstance]))
 		sb.WriteString("\n")
-		sb.WriteString(HelpStyle.Render("[c] SSH Connect • Enter: back to list • q/Esc: quit"))
+		sb.WriteString(HelpStyle.Render(
+			"[c] SSH  [s] Start  [S] Stop  [x] Force Stop  [r] Restart  [R] Force Restart  [n] Rename  [Esc] Back",
+		))
 		sb.WriteString("\n")
 		return sb.String()
 	}

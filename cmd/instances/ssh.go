@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"time"
 
 	"github.com/hostodo/hostodo-cli/pkg/api"
 	"github.com/hostodo/hostodo-cli/pkg/auth"
@@ -137,6 +138,11 @@ func RunSSH(cmd *cobra.Command, args []string) {
 	// Only retry with sshpass on SSH connection/auth failure (exit code 255).
 	// Other non-zero codes (1-254) are the remote command's exit status from
 	// a session that connected successfully — don't retry those.
+	if exitCode == 255 && isRecentlyCreated(instance, 10*time.Minute) {
+		fmt.Fprintf(os.Stderr, "\nOS is still being installed — hang tight! Try again in a minute or two.\n")
+		os.Exit(exitCode)
+	}
+
 	if exitCode == 255 && instance.DefaultPassword != "" {
 		sshpassBinary, err := exec.LookPath("sshpass")
 		if err != nil {
@@ -195,6 +201,19 @@ func buildSSHArgs(target string, hasPasswordFallback bool, extraArgs []string) [
 	args = append(args, target)
 	args = append(args, extraArgs...)
 	return args
+}
+
+// isRecentlyCreated returns true if the instance was created within the given window.
+// The API serializes DateTimeField as ISO 8601 with microseconds and UTC Z suffix.
+func isRecentlyCreated(instance *api.Instance, window time.Duration) bool {
+	if instance.CreatedAt == "" {
+		return false
+	}
+	t, err := time.Parse("2006-01-02T15:04:05.999999Z", instance.CreatedAt)
+	if err != nil {
+		return false
+	}
+	return time.Since(t) < window
 }
 
 func runSSHCommand(binary string, args []string) int {

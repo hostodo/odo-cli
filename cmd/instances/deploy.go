@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -207,7 +206,6 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 		return printJSONResult(instance, selectedRegion, selectedPlan)
 	}
 	displayDeployResult(instance, selectedRegion, selectedPlan)
-	promptSSHConnect(hostname)
 	return nil
 }
 
@@ -534,30 +532,6 @@ SSH:            ssh %s@%s`,
 		Padding(1, 2)
 
 	fmt.Println("\n" + cardStyle.Render(cardContent) + "\n")
-}
-
-func promptSSHConnect(hostname string) {
-	connectNow := true
-	err := huh.NewConfirm().
-		Title("Connect now?").
-		Value(&connectNow).
-		Run()
-	if err != nil {
-		return
-	}
-	if connectNow {
-		// Re-exec as subprocess so os.Exit in RunSSH doesn't bypass our deferred cleanup
-		binary, err := os.Executable()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			return
-		}
-		cmd := exec.Command(binary, "ssh", hostname)
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		cmd.Run()
-	}
 }
 
 // --- Search helpers ---
