@@ -125,6 +125,32 @@ func (c *Client) RenameInstance(instanceID, newHostname string) error {
 	return parseResponse(resp, nil)
 }
 
+// ReinstallResponse is returned by the reinstall endpoint.
+type ReinstallResponse struct {
+	Instance    Instance `json:"instance"`
+	RootPW      string   `json:"rootpw"`
+	DefaultUser string   `json:"default_user"`
+}
+
+// ReinstallInstance wipes and reinstalls the OS on an instance.
+// This is a long-running synchronous call (stop + delete + rebuild).
+func (c *Client) ReinstallInstance(instanceID string, templateID int, sshKeyID int) (*ReinstallResponse, error) {
+	path := fmt.Sprintf("/client/instances/%s/reinstall/", instanceID)
+	body := map[string]interface{}{"template_id": templateID}
+	if sshKeyID > 0 {
+		body["ssh_key_id"] = sshKeyID
+	}
+	resp, err := c.doRequestWithTimeout("POST", path, body, 10*time.Minute)
+	if err != nil {
+		return nil, err
+	}
+	var result ReinstallResponse
+	if err := parseResponse(resp, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // RebootInstance reboots an instance. If force is true, performs an immediate reboot.
 // Uses a longer timeout since the backend performs stop+start synchronously.
 func (c *Client) RebootInstance(instanceID string, force bool) error {

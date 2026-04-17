@@ -182,6 +182,11 @@ func runTUIAction(client *api.Client, tm ui.TableModel) {
 		}
 		resolver.InvalidateCache()
 		fmt.Printf("✓ Instance renamed to %s\n", newHostname)
+
+	case "reinstall":
+		if err := ReinstallCmd.RunE(ReinstallCmd, []string{instance.Hostname}); err != nil {
+			exitWithError("Reinstall failed: %v", err)
+		}
 	}
 }
 

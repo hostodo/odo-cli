@@ -190,6 +190,11 @@ func (m TableModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.renameInput.Focus()
 				m.renameInput.CursorEnd()
 				return m, textinput.Blink
+			case "i":
+				m.APIAction = "reinstall"
+				m.ActionInstance = &m.instances[m.selectedInstance]
+				m.quitting = true
+				return m, tea.Quit
 			}
 
 		case ListMode:
@@ -257,7 +262,7 @@ func (m TableModel) View() string {
 		sb.WriteString(FormatInstanceDetail(&m.instances[m.selectedInstance]))
 		sb.WriteString("\n")
 		sb.WriteString(HelpStyle.Render(
-			"[c] SSH  [s] Start  [S] Stop  [x] Force Stop  [r] Restart  [R] Force Restart  [n] Rename  [Esc] Back",
+			"[c] SSH  [s] Start  [S] Stop  [x] Force Stop  [r] Restart  [R] Force Restart  [n] Rename  [i] Reinstall  [Esc] Back",
 		))
 		sb.WriteString("\n")
 		return sb.String()
