@@ -172,6 +172,7 @@ type QuoteRequest struct {
 	PlanID       int    `json:"plan_id"`
 	BillingCycle string `json:"billing_cycle"`
 	Quantity     int    `json:"quantity"`
+	Promocode    string `json:"promocode,omitempty"`
 }
 
 // QuoteResponse represents a price quote response
