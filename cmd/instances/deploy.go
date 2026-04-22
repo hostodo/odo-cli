@@ -26,6 +26,7 @@ var (
 	hostnameFlag     string
 	sshKeyFlag       string
 	billingCycleFlag string
+	promoFlag        string
 	yesFlag          bool
 	jsonFlag         bool
 )
@@ -53,6 +54,9 @@ Examples:
   # Skip confirmation
   odo instances deploy --yes
 
+  # Apply a promo code
+  odo instances deploy --promo LETCLI
+
   # JSON output (requires all selection flags)
   odo instances deploy --os "Ubuntu 22.04" --region "Los Angeles" --plan KVM-2G --json`,
 	RunE: runDeploy,
@@ -65,6 +69,7 @@ func init() {
 	DeployCmd.Flags().StringVar(&hostnameFlag, "hostname", "", "Custom hostname (skips auto-generation)")
 	DeployCmd.Flags().StringVar(&sshKeyFlag, "ssh-key", "", "SSH key name to use for authentication")
 	DeployCmd.Flags().StringVar(&billingCycleFlag, "billing-cycle", "", "Billing cycle (monthly, annually, semiannually, biennially, triennially)")
+	DeployCmd.Flags().StringVar(&promoFlag, "promo", "", "Promo code for a discount")
 	DeployCmd.Flags().BoolVarP(&yesFlag, "yes", "y", false, "Skip confirmation prompt")
 	DeployCmd.Flags().BoolVar(&jsonFlag, "json", false, "JSON output mode (requires --os, --region, --plan)")
 }
@@ -159,6 +164,7 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 		PlanID:       selectedPlan.ID,
 		BillingCycle: selectedCycle,
 		Quantity:     1,
+		Promocode:    promoFlag,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to get price quote: %w", err)
@@ -174,7 +180,7 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 
 	// Confirmation
 	if !yesFlag && !jsonFlag {
-		confirmed, err := confirmDeploy(selectedTemplate, selectedRegion, selectedPlan, hostname, quote, paymentMethod, selectedCycle)
+		confirmed, err := confirmDeploy(selectedTemplate, selectedRegion, selectedPlan, hostname, quote, paymentMethod, selectedCycle, promoFlag)
 		if err != nil {
 			return err
 		}
@@ -193,6 +199,7 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 		BillingCycle:    selectedCycle,
 		SSHKey:          sshKeyName,
 		PaymentMethodID: paymentMethod.PaymentMethodID,
+		Promocode:       promoFlag,
 		Quantity:        1,
 	}
 
@@ -378,15 +385,19 @@ func selectSSHKey(client *api.Client, flag string, jsonMode bool) (string, error
 
 // --- Deploy execution ---
 
-func confirmDeploy(tmpl *api.Template, region *api.Region, plan *api.Plan, hostname string, quote *api.QuoteResponse, pm *api.PaymentMethod, billingCycle string) (bool, error) {
+func confirmDeploy(tmpl *api.Template, region *api.Region, plan *api.Plan, hostname string, quote *api.QuoteResponse, pm *api.PaymentMethod, billingCycle string, promo string) (bool, error) {
 	suffix := billingCycleSuffix(billingCycle)
+	promoLine := ""
+	if promo != "" {
+		promoLine = fmt.Sprintf("\n  Promo:    %s (applied)", promo)
+	}
 	summary := fmt.Sprintf(`Deploy Summary:
   OS:       %s
   Region:   %s
   Plan:     %s (%d vCPU, %sGB RAM, %dGB SSD)
   Billing:  %s
   Hostname: %s
-  Price:    $%s%s
+  Price:    $%s%s%s
   Payment:  %s ****%s`,
 		tmpl.Name,
 		region.Name,
@@ -398,6 +409,7 @@ func confirmDeploy(tmpl *api.Template, region *api.Region, plan *api.Plan, hostn
 		hostname,
 		quote.AmountDue,
 		suffix,
+		promoLine,
 		pm.CardType,
 		pm.LastFour)
 
