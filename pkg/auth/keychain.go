@@ -120,6 +120,12 @@ func (s *TokenStore) getFromOldFile() (string, error) {
 // Helper functions for package-level access
 var defaultStore = NewTokenStore()
 
+// ResetDefaultStore re-initialises the package-level store from the current
+// HOME environment variable. Useful in tests that redirect HOME to a temp dir.
+func ResetDefaultStore() {
+	defaultStore = NewTokenStore()
+}
+
 // GetToken retrieves the stored access token
 func GetToken() (string, error) {
 	return defaultStore.Get()

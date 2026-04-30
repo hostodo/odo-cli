@@ -104,7 +104,6 @@ func (c *Client) doRequest(method, path string, body interface{}) (*http.Respons
 		resp.Body.Close()
 		var errResp struct {
 			Detail string `json:"detail"`
-			Code   string `json:"code"`
 		}
 		if json.Unmarshal(body, &errResp) == nil {
 			if strings.Contains(errResp.Detail, "revoked") {
