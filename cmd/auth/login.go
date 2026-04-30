@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"os/exec"
 	"os/signal"
+	"runtime"
 	"strings"
 	"time"
 
@@ -18,7 +20,6 @@ import (
 	"github.com/common-nighthawk/go-figure"
 	"github.com/hostodo/hostodo-cli/pkg/auth"
 	"github.com/hostodo/hostodo-cli/pkg/config"
-	"github.com/pkg/browser"
 	"github.com/spf13/cobra"
 )
 
@@ -144,7 +145,23 @@ func runLogin(cmd *cobra.Command, args []string) {
 	bufio.NewReader(os.Stdin).ReadString('\n')
 
 	// Open browser (with code in URL)
-	if err := browser.OpenURL(verificationURL); err != nil {
+	// Open browser with stdout/stderr discarded so multiplexer shims (e.g. Zellij)
+	// don't leak their "OK surface=..." acknowledgment into our output.
+	openBrowser := func(url string) error {
+		var cmd *exec.Cmd
+		switch runtime.GOOS {
+		case "darwin":
+			cmd = exec.Command("open", url)
+		case "windows":
+			cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
+		default:
+			cmd = exec.Command("xdg-open", url)
+		}
+		cmd.Stdout = nil
+		cmd.Stderr = nil
+		return cmd.Start()
+	}
+	if err := openBrowser(verificationURL); err != nil {
 		fmt.Println(warningStyle.Render("  ⚠") + " Could not open browser automatically")
 		fmt.Printf("  Please visit the URL above manually\n")
 	} else {
