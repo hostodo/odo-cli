@@ -1,6 +1,6 @@
 # Hostodo CLI
-![Version](https://img.shields.io/badge/version-2.0.0-blue)
-![Go Version](https://img.shields.io/badge/go-1.24+-00ADD8?logo=go)
+![Version](https://img.shields.io/badge/version-2.0.5-blue)
+![Go Version](https://img.shields.io/badge/go-1.25+-00ADD8?logo=go)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 The official CLI for managing Hostodo VPS instances. The binary is called `odo`.
@@ -12,7 +12,6 @@ The official CLI for managing Hostodo VPS instances. The binary is called `odo`.
 #### Homebrew (macOS/Linux)
 
 ```bash
-brew tap hostodo/tap
 brew install hostodo/tap/odo
 ```
 
@@ -22,15 +21,11 @@ Download pre-built binaries from the [releases page](https://github.com/hostodo/
 
 ```bash
 # macOS (Apple Silicon)
-curl -L https://github.com/hostodo/odo-cli/releases/latest/download/odo_Darwin_arm64.tar.gz | tar xz
-sudo mv odo /usr/local/bin/
-
-# macOS (Intel)
-curl -L https://github.com/hostodo/odo-cli/releases/latest/download/odo_Darwin_x86_64.tar.gz | tar xz
+curl -L https://github.com/hostodo/odo-cli/releases/latest/download/odo-cli_Darwin_all.tar.gz | tar xz
 sudo mv odo /usr/local/bin/
 
 # Linux (amd64)
-curl -L https://github.com/hostodo/odo-cli/releases/latest/download/odo_Linux_x86_64.tar.gz | tar xz
+curl -L https://github.com/hostodo/odo-cli/releases/latest/download/odo-cli_Linux_x86_64.tar.gz | tar xz
 sudo mv odo /usr/local/bin/
 ```
 
@@ -38,15 +33,17 @@ sudo mv odo /usr/local/bin/
 
 ```bash
 # Debian/Ubuntu
-wget https://github.com/hostodo/odo-cli/releases/latest/download/odo_Linux_x86_64.deb
-sudo dpkg -i odo_Linux_x86_64.deb
+wget https://github.com/hostodo/odo-cli/releases/latest/download/odo_linux_amd64.deb
+sudo dpkg -i odo_linux_amd64.deb
 
 # RHEL/CentOS/Fedora
-wget https://github.com/hostodo/odo-cli/releases/latest/download/odo_Linux_x86_64.rpm
-sudo rpm -i odo_Linux_x86_64.rpm
+wget https://github.com/hostodo/odo-cli/releases/latest/download/odo_linux_amd64.rpm
+sudo rpm -i odo_linux_amd64.rpm
 ```
 
 #### From Source
+
+Requires Go 1.25 or higher:
 
 ```bash
 git clone https://github.com/hostodo/odo-cli.git
@@ -60,31 +57,34 @@ make install
 odo login
 ```
 
-Uses OAuth device flow — a browser window opens for you to authorize the CLI. Your access token is stored in the OS keychain (macOS Keychain, Linux Secret Service) with an encrypted file fallback.
+Uses OAuth device flow — a browser window opens for you to authorize the CLI. Your access token is stored in the OS keychain (macOS Keychain, Linux Secret Service). On headless systems without a keychain, a plain token file is stored at `~/.odo/token` with `0600` permissions.
 
 ### Basic Usage
 
 ```bash
 # List all instances (interactive TUI)
-odo instances
+odo list
 
 # SSH into an instance
 odo ssh <hostname>
 
-# Deploy a new instance
-odo instances deploy
+# Deploy a new instance (interactive wizard)
+odo deploy
+
+# Deploy with a promo code
+odo deploy --promo LETCLI
 
 # Power control
-odo instances start <hostname>
-odo instances stop <hostname>
-odo instances restart <hostname>
+odo start <hostname>
+odo stop <hostname>
+odo restart <hostname>
 ```
 
 ## 📖 Commands
 
 ### Global Flags
 
-- `--api-url string` - API URL (default: https://api.hostodo.com or `$HOSTODO_API_URL`)
+- `--api-url string` - API URL (default: `https://api.hostodo.com` or `$HOSTODO_API_URL`, must be https://)
 - `--config string` - Config file path (default: `$HOME/.odo/config.json`)
 - `-h, --help` - Show help
 - `-v, --version` - Show version
@@ -96,7 +96,6 @@ Authenticate with your Hostodo account using OAuth device flow.
 
 ```bash
 odo login
-odo login --api-url https://custom-api.example.com
 ```
 
 #### `odo logout`
@@ -138,9 +137,9 @@ List all your VPS instances. Aliases: `ls`, `ps`.
 - `--offset int` - Pagination offset
 
 ```bash
-odo instances
-odo instances --json
-odo instances --simple
+odo list
+odo list --json
+odo list --simple
 odo list --details
 ```
 
@@ -163,10 +162,10 @@ odo instances status my-server --json
 Power control.
 
 ```bash
-odo instances start my-server
-odo instances stop my-server
-odo instances stop my-server --force   # immediate shutdown
-odo instances restart my-server
+odo start my-server
+odo stop my-server
+odo stop my-server --force   # immediate shutdown
+odo restart my-server
 ```
 
 #### `odo instances ssh <hostname>`
@@ -182,7 +181,22 @@ odo ssh my-server -- -L 8080:localhost:8080   # extra ssh flags after --
 #### `odo instances rename <hostname> <new-hostname>`
 
 ```bash
-odo instances rename my-server new-name
+odo rename my-server new-name
+```
+
+#### `odo instances reinstall <hostname>`
+
+Wipe and reinstall the OS on an instance. **Destructive — all data will be lost.**
+
+```bash
+# Interactive
+odo reinstall my-server
+
+# Specify OS
+odo reinstall my-server --os "Debian 12"
+
+# Specify OS + SSH key
+odo reinstall my-server --os "Ubuntu 22.04" --ssh-key mykey
 ```
 
 #### `odo instances deploy`
@@ -191,28 +205,28 @@ Deploy a new Hostodo VPS with interactive prompts or flags. Aliases: `new`, `cre
 
 **Flags:**
 - `--os string` - OS template (skips OS prompt)
-- `--region string` - Region (skips region prompt)
-- `--plan string` - Plan name (skips plan prompt)
+- `--region string` - Region: `DET01`, `LV01`, `TPA01`
+- `--plan string` - Plan name (e.g. `EPYC-2G1C32GN`)
 - `--hostname string` - Custom hostname
 - `--ssh-key string` - SSH key name
-- `--billing-cycle string` - `monthly`, `annually`, etc.
+- `--billing-cycle string` - `monthly`, `annually`, `semiannually`, `biennially`, `triennially`
+- `--promo string` - Promo code for a discount
 - `-y, --yes` - Skip confirmation
 - `--json` - JSON output (requires `--os`, `--region`, `--plan`)
 
 ```bash
-# Interactive
-odo instances deploy
+# Interactive wizard
+odo deploy
 
-# Non-interactive
-odo deploy --os "Ubuntu 25.04" --region DET01 --plan EPYC-2G1C32GN --yes
+# With promo code
+odo deploy --promo LETCLI
+
+# Fully non-interactive
+odo deploy --os "Ubuntu 22.04" --region DET01 --plan EPYC-2G1C32GN --billing-cycle monthly --promo LETCLI --yes
 
 # JSON output
-odo deploy --os "Ubuntu 25.04" --region DET01 --plan EPYC-2G1C32GN --json
+odo deploy --os "Ubuntu 22.04" --region DET01 --plan EPYC-2G1C32GN --json
 ```
-
-#### `odo instances reinstall <hostname>`
-
-Reinstall the OS on an instance. *(Coming soon)*
 
 ### Billing
 
@@ -269,16 +283,11 @@ Config is stored in `~/.odo/config.json`:
 }
 ```
 
-Tokens are stored in the OS keychain, not in the config file. Encrypted file fallback at `~/.odo/token.enc`.
+Tokens are stored in the OS keychain. On systems without a keychain, a plain token file is used at `~/.odo/token` with `0600` permissions. The config file never contains credentials.
 
 ### Environment Variables
 
-- `HOSTODO_API_URL` — Override the API URL
-
-```bash
-export HOSTODO_API_URL=http://localdev.hostodo.com:8000
-odo login
-```
+- `HOSTODO_API_URL` — Override the API URL (must be `https://`)
 
 ## 🏗️ Development
 
@@ -303,7 +312,7 @@ cmd/
 ├── completion.go
 ├── auth/                # Auth subcommands (login, logout, whoami, sessions)
 └── instances/           # Instance subcommands
-    ├── root.go          # instances parent command
+    ├── root.go
     ├── list.go
     ├── status.go
     ├── start.go
@@ -315,7 +324,7 @@ cmd/
     └── reinstall.go
 pkg/
 ├── api/                 # HTTP client + endpoint methods + models
-├── auth/                # Token storage (keychain + encrypted fallback)
+├── auth/                # Token storage (OS keychain + file fallback)
 ├── config/              # Config file (~/.odo/config.json)
 ├── resolver/            # Hostname resolution + tab completion
 ├── deploy/              # Hostname generation
@@ -330,10 +339,10 @@ MIT — see LICENSE file for details.
 ## 🔗 Links
 
 - [Hostodo Website](https://hostodo.com)
+- [CLI Documentation](https://hostodo.com/docs/cli)
 - [Hostodo Console](https://console.hostodo.com)
-- [API Documentation](https://console.hostodo.com/api/docs)
 
 ## 💬 Support
 
 - Email: support@hostodo.com
-- Documentation: [docs.hostodo.com](https://hostodo.com/docs/cli)
+- Open an issue: [github.com/hostodo/odo-cli/issues](https://github.com/hostodo/odo-cli/issues)
