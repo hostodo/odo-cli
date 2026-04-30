@@ -1,8 +1,6 @@
 module github.com/hostodo/hostodo-cli
 
-go 1.24.0
-
-toolchain go1.24.10
+go 1.25.9
 
 require (
 	github.com/atotto/clipboard v0.1.4

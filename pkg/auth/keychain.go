@@ -1,12 +1,7 @@
 package auth
 
 import (
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/rand"
-	"crypto/sha256"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 
@@ -29,12 +24,12 @@ type TokenStore struct {
 func NewTokenStore() *TokenStore {
 	home, _ := os.UserHomeDir()
 	return &TokenStore{
-		fallbackPath:    filepath.Join(home, ".odo", "token.enc"),
+		fallbackPath:    filepath.Join(home, ".odo", "token"),
 		oldFallbackPath: filepath.Join(home, ".hostodo", "token.enc"),
 	}
 }
 
-// Save stores a token in keychain, falling back to encrypted file
+// Save stores a token in keychain, falling back to a 0600 file
 func (s *TokenStore) Save(token string) error {
 	err := keyring.Set(serviceName, accountName, token)
 	if err == nil {
@@ -44,8 +39,11 @@ func (s *TokenStore) Save(token string) error {
 		return nil
 	}
 
-	// Fallback to encrypted file
-	fmt.Println("Warning: System keychain unavailable, using encrypted file storage")
+	// Fallback to plain file with strict permissions.
+	// The file is owner-read-only (0600); on a single-user machine this is
+	// equivalent to the old hostname-derived encryption which provided no
+	// meaningful protection beyond filesystem permissions.
+	fmt.Println("Warning: System keychain unavailable, using file-based token storage")
 	return s.saveToFile(token)
 }
 
@@ -69,7 +67,7 @@ func (s *TokenStore) Get() (string, error) {
 		return token, nil
 	}
 
-	// Try old fallback file path
+	// Try old fallback file path (legacy encrypted format — best-effort)
 	return s.getFromOldFile()
 }
 
@@ -84,90 +82,39 @@ func (s *TokenStore) Delete() error {
 	return nil
 }
 
-// saveToFile encrypts and saves token to file
+// saveToFile writes the token to a 0600 file
 func (s *TokenStore) saveToFile(token string) error {
-	key := s.deriveKey()
-
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return fmt.Errorf("failed to create cipher: %w", err)
-	}
-
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return fmt.Errorf("failed to create GCM: %w", err)
-	}
-
-	nonce := make([]byte, gcm.NonceSize())
-	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		return fmt.Errorf("failed to generate nonce: %w", err)
-	}
-
-	ciphertext := gcm.Seal(nonce, nonce, []byte(token), nil)
-
 	// Ensure directory exists
 	if err := os.MkdirAll(filepath.Dir(s.fallbackPath), 0700); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
-
-	// Write with restrictive permissions
-	if err := os.WriteFile(s.fallbackPath, ciphertext, 0600); err != nil {
+	// Write with restrictive permissions (owner read/write only)
+	if err := os.WriteFile(s.fallbackPath, []byte(token), 0600); err != nil {
 		return fmt.Errorf("failed to write token file: %w", err)
 	}
-
 	return nil
 }
 
-// getFromFile decrypts and returns token from the new fallback file
+// getFromFile reads the token from the new fallback file
 func (s *TokenStore) getFromFile() (string, error) {
-	return s.decryptFile(s.fallbackPath)
-}
-
-// getFromOldFile decrypts and returns token from the old fallback file path
-func (s *TokenStore) getFromOldFile() (string, error) {
-	return s.decryptFile(s.oldFallbackPath)
-}
-
-// decryptFile decrypts and returns token from the given file path
-func (s *TokenStore) decryptFile(path string) (string, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(s.fallbackPath)
 	if err != nil {
 		return "", fmt.Errorf("not authenticated: %w", err)
 	}
-
-	key := s.deriveKey()
-
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return "", fmt.Errorf("failed to create cipher: %w", err)
-	}
-
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return "", fmt.Errorf("failed to create GCM: %w", err)
-	}
-
-	nonceSize := gcm.NonceSize()
-	if len(data) < nonceSize {
-		return "", fmt.Errorf("invalid token file")
-	}
-
-	nonce, ciphertext := data[:nonceSize], data[nonceSize:]
-
-	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
-	if err != nil {
-		return "", fmt.Errorf("failed to decrypt token: %w", err)
-	}
-
-	return string(plaintext), nil
+	return string(data), nil
 }
 
-// deriveKey generates encryption key from machine-specific data.
-// NOTE: Keep using "hostodo-cli-" prefix so existing encrypted tokens still decrypt.
-func (s *TokenStore) deriveKey() []byte {
-	hostname, _ := os.Hostname()
-	hash := sha256.Sum256([]byte("hostodo-cli-" + hostname))
-	return hash[:]
+// getFromOldFile attempts to read the old encrypted token file.
+// The old format used AES-256-GCM with a hostname-derived key; since that
+// key was not secret we just try the keychain migration path instead and
+// return an error so the user is prompted to re-login.
+func (s *TokenStore) getFromOldFile() (string, error) {
+	if _, err := os.Stat(s.oldFallbackPath); os.IsNotExist(err) {
+		return "", fmt.Errorf("not authenticated")
+	}
+	// Old encrypted file exists but we no longer carry the decryption logic.
+	// Tell user to re-login which will write a clean token.
+	return "", fmt.Errorf("legacy token format detected — please run 'odo login' to re-authenticate")
 }
 
 // Helper functions for package-level access

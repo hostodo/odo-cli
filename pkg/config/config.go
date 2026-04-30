@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 
@@ -80,7 +81,7 @@ func MigrateConfigDir() error {
 	return nil
 }
 
-// copyFile copies a single file from src to dst, preserving permissions.
+// copyFile copies a single file from src to dst with secure 0600 permissions.
 func copyFile(src, dst string) error {
 	in, err := os.Open(src)
 	if err != nil {
@@ -88,12 +89,7 @@ func copyFile(src, dst string) error {
 	}
 	defer in.Close()
 
-	info, err := in.Stat()
-	if err != nil {
-		return err
-	}
-
-	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, info.Mode())
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
 	if err != nil {
 		return err
 	}
@@ -201,6 +197,11 @@ func Clear() error {
 func GetDefaultAPIURL() string {
 	// Check environment variable first
 	if apiURL := os.Getenv("HOSTODO_API_URL"); apiURL != "" {
+		u, err := url.Parse(apiURL)
+		if err != nil || u.Scheme != "https" || u.Host == "" {
+			fmt.Fprintf(os.Stderr, "Warning: HOSTODO_API_URL must be an https:// URL, ignoring\n")
+			return "https://api.hostodo.com"
+		}
 		return apiURL
 	}
 	// Default to production API
