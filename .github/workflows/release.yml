@@ -1,5 +1,11 @@
 name: Release
 
+# Runs GoReleaser for tags pushed MANUALLY (e.g. a local `git push origin vX.Y.Z`
+# or a hotfix tag). The normal path is the "Release (Manual)" workflow
+# (release-dispatch.yml), which tags + runs GoReleaser in one job — its tag push
+# uses GITHUB_TOKEN and intentionally does NOT trigger this workflow (GitHub's
+# anti-recursion rule), so the two paths never double-release the same tag.
+
 on:
   push:
     tags:

@@ -15,9 +15,10 @@ on:
 
 permissions:
   contents: write
+  packages: write
 
 jobs:
-  create-tag:
+  release:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -33,5 +34,26 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
       - name: Create and push release tag
         run: ./scripts/release-version.sh "${{ inputs.bump }}" --push
+
+      # Run GoReleaser in the SAME job rather than relying on the tag push to
+      # trigger release.yml. The tag above is pushed with the default
+      # GITHUB_TOKEN, and tags pushed by GITHUB_TOKEN do NOT trigger other
+      # workflows (GitHub's anti-recursion safeguard) — so release.yml would
+      # silently never run. release-version.sh has already created the tag on
+      # HEAD locally, so GoReleaser picks it up here directly.
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: '~> v2'
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
