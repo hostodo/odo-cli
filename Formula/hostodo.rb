@@ -25,9 +25,9 @@ class Hostodo < Formula
 
     ldflags = %W[
       -s -w
-      -X github.com/hostodo/hostodo-cli/cmd.Version=#{version}
-      -X github.com/hostodo/hostodo-cli/cmd.Commit=#{commit}
-      -X github.com/hostodo/hostodo-cli/cmd.Date=#{build_date}
+      -X github.com/hostodo/odo-cli/v2/cmd.Version=#{version}
+      -X github.com/hostodo/odo-cli/v2/cmd.Commit=#{commit}
+      -X github.com/hostodo/odo-cli/v2/cmd.Date=#{build_date}
     ]
 
     system "go", "build", *std_go_args(ldflags: ldflags), "-o", bin/"hostodo"

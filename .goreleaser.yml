@@ -23,9 +23,9 @@ builds:
         goarch: arm64
     ldflags:
       - -s -w
-      - -X github.com/hostodo/hostodo-cli/cmd.Version={{.Version}}
-      - -X github.com/hostodo/hostodo-cli/cmd.Commit={{.Commit}}
-      - -X github.com/hostodo/hostodo-cli/cmd.Date={{.Date}}
+      - -X github.com/hostodo/odo-cli/v2/cmd.Version={{.Version}}
+      - -X github.com/hostodo/odo-cli/v2/cmd.Commit={{.Commit}}
+      - -X github.com/hostodo/odo-cli/v2/cmd.Date={{.Date}}
     flags:
       - -trimpath
 

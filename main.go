@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/hostodo/hostodo-cli/cmd"
+	"github.com/hostodo/odo-cli/v2/cmd"
 	"os"
 )
 

@@ -1,4 +1,4 @@
-module github.com/hostodo/hostodo-cli
+module github.com/hostodo/odo-cli/v2
 
 go 1.25.9
 

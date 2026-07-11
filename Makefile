@@ -9,7 +9,7 @@ INSTALL_PATH=/usr/local/bin
 # Build information
 COMMIT=$(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 DATE=$(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
-LDFLAGS=-ldflags "-s -w -X github.com/hostodo/hostodo-cli/cmd.Version=$(VERSION) -X github.com/hostodo/hostodo-cli/cmd.Commit=$(COMMIT) -X github.com/hostodo/hostodo-cli/cmd.Date=$(DATE)"
+LDFLAGS=-ldflags "-s -w -X github.com/hostodo/odo-cli/v2/cmd.Version=$(VERSION) -X github.com/hostodo/odo-cli/v2/cmd.Commit=$(COMMIT) -X github.com/hostodo/odo-cli/v2/cmd.Date=$(DATE)"
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'

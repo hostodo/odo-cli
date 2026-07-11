@@ -24,7 +24,7 @@ Ensure your repository is set up correctly:
 ```bash
 # Verify repository URL in go.mod
 cat go.mod | grep module
-# Should show: module github.com/hostodo/hostodo-cli
+# Should show: module github.com/hostodo/odo-cli/v2
 
 # Ensure you're on GitHub
 git remote -v
@@ -315,9 +315,9 @@ shasum -a 256 your-binary.tar.gz
 Ensure ldflags are set correctly in `.goreleaser.yml`:
 ```yaml
 ldflags:
-  - -X github.com/hostodo/hostodo-cli/cmd.Version={{.Version}}
-  - -X github.com/hostodo/hostodo-cli/cmd.Commit={{.Commit}}
-  - -X github.com/hostodo/hostodo-cli/cmd.Date={{.Date}}
+  - -X github.com/hostodo/odo-cli/v2/cmd.Version={{.Version}}
+  - -X github.com/hostodo/odo-cli/v2/cmd.Commit={{.Commit}}
+  - -X github.com/hostodo/odo-cli/v2/cmd.Date={{.Date}}
 ```
 
 ## Updating the Formula
