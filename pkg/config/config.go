@@ -183,9 +183,11 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("failed to parse config file: %w", err)
 	}
 
-	// The --api-url flag overrides the config file and environment
+	// Precedence: --api-url flag > HOSTODO_API_URL > config file > default
 	if apiURLOverride != "" {
 		config.APIURL = apiURLOverride
+	} else if envURL := apiURLFromEnv(); envURL != "" {
+		config.APIURL = envURL
 	} else if config.APIURL == "" {
 		config.APIURL = GetDefaultAPIURL()
 	}
@@ -234,6 +236,21 @@ func Clear() error {
 	return nil
 }
 
+// apiURLFromEnv returns a validated HOSTODO_API_URL value, or "" when the
+// variable is unset or invalid (invalid values print a warning).
+func apiURLFromEnv() string {
+	apiURL := os.Getenv("HOSTODO_API_URL")
+	if apiURL == "" {
+		return ""
+	}
+	u, err := url.Parse(apiURL)
+	if err != nil || u.Host == "" || !isAllowedScheme(u.Scheme) {
+		fmt.Fprintf(os.Stderr, "Warning: HOSTODO_API_URL must be an https:// URL, ignoring\n")
+		return ""
+	}
+	return apiURL
+}
+
 // GetDefaultAPIURL returns the default API URL
 func GetDefaultAPIURL() string {
 	// The --api-url flag takes precedence over everything
@@ -241,13 +258,8 @@ func GetDefaultAPIURL() string {
 		return apiURLOverride
 	}
 	// Check environment variable next
-	if apiURL := os.Getenv("HOSTODO_API_URL"); apiURL != "" {
-		u, err := url.Parse(apiURL)
-		if err != nil || u.Host == "" || !isAllowedScheme(u.Scheme) {
-			fmt.Fprintf(os.Stderr, "Warning: HOSTODO_API_URL must be an https:// URL, ignoring\n")
-			return "https://api.hostodo.com"
-		}
-		return apiURL
+	if envURL := apiURLFromEnv(); envURL != "" {
+		return envURL
 	}
 	// Default to production API
 	return "https://api.hostodo.com"

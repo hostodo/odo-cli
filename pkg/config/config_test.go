@@ -114,6 +114,52 @@ func TestGetDefaultAPIURL_HTTPEnvVarAllowedWithForce(t *testing.T) {
 	}
 }
 
+func TestLoad_EnvVarBeatsConfigFile(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("HOSTODO_API_URL", "https://env.hostodo.com")
+
+	configDirPath := filepath.Join(home, configDir)
+	if err := os.MkdirAll(configDirPath, 0700); err != nil {
+		t.Fatalf("failed to create config dir: %v", err)
+	}
+	data := []byte(`{"api_url": "https://file.hostodo.com", "device_id": "abc"}`)
+	if err := os.WriteFile(filepath.Join(configDirPath, configFile), data, 0600); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.APIURL != "https://env.hostodo.com" {
+		t.Errorf("expected env URL to beat config file, got %s", cfg.APIURL)
+	}
+}
+
+func TestLoad_InvalidEnvVarFallsBackToConfigFile(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("HOSTODO_API_URL", "http://env.hostodo.com") // http without --force-http is invalid
+
+	configDirPath := filepath.Join(home, configDir)
+	if err := os.MkdirAll(configDirPath, 0700); err != nil {
+		t.Fatalf("failed to create config dir: %v", err)
+	}
+	data := []byte(`{"api_url": "https://file.hostodo.com", "device_id": "abc"}`)
+	if err := os.WriteFile(filepath.Join(configDirPath, configFile), data, 0600); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.APIURL != "https://file.hostodo.com" {
+		t.Errorf("expected config file URL when env var is invalid, got %s", cfg.APIURL)
+	}
+}
+
 func TestSetAPIURLOverride_EmptyClears(t *testing.T) {
 	if err := SetAPIURLOverride("https://flag.hostodo.com"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
