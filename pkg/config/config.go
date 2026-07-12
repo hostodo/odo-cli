@@ -119,6 +119,45 @@ func EnsureConfigDir() error {
 	return nil
 }
 
+// apiURLOverride is a process-wide API URL override set from the --api-url
+// flag. It takes precedence over HOSTODO_API_URL and the config file.
+var apiURLOverride string
+
+// allowHTTPAPIURL relaxes the https:// requirement for API URL overrides.
+// Set from the --force-http flag, for pointing at a local dev backend.
+var allowHTTPAPIURL bool
+
+// SetAllowHTTPAPIURL toggles whether http:// API URLs are accepted from
+// --api-url and HOSTODO_API_URL. Call before SetAPIURLOverride.
+func SetAllowHTTPAPIURL(allow bool) {
+	allowHTTPAPIURL = allow
+}
+
+// SetAPIURLOverride sets the API URL override, typically from the --api-url
+// flag. Passing an empty string clears the override. The URL must be an
+// https:// URL with a host, unless SetAllowHTTPAPIURL(true) was called.
+func SetAPIURLOverride(rawURL string) error {
+	if rawURL == "" {
+		apiURLOverride = ""
+		return nil
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil || u.Host == "" || !isAllowedScheme(u.Scheme) {
+		if allowHTTPAPIURL {
+			return fmt.Errorf("--api-url must be an http(s):// URL, got %q", rawURL)
+		}
+		return fmt.Errorf("--api-url must be an https:// URL (use --force-http to allow http), got %q", rawURL)
+	}
+	apiURLOverride = rawURL
+	return nil
+}
+
+// isAllowedScheme reports whether an API URL scheme is acceptable:
+// https always, http only when --force-http is in effect.
+func isAllowedScheme(scheme string) bool {
+	return scheme == "https" || (scheme == "http" && allowHTTPAPIURL)
+}
+
 // Load reads the configuration from disk
 func Load() (*Config, error) {
 	configPath, err := GetConfigPath()
@@ -144,8 +183,10 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("failed to parse config file: %w", err)
 	}
 
-	// If API URL is not set in config, use default
-	if config.APIURL == "" {
+	// The --api-url flag overrides the config file and environment
+	if apiURLOverride != "" {
+		config.APIURL = apiURLOverride
+	} else if config.APIURL == "" {
 		config.APIURL = GetDefaultAPIURL()
 	}
 
@@ -195,10 +236,14 @@ func Clear() error {
 
 // GetDefaultAPIURL returns the default API URL
 func GetDefaultAPIURL() string {
-	// Check environment variable first
+	// The --api-url flag takes precedence over everything
+	if apiURLOverride != "" {
+		return apiURLOverride
+	}
+	// Check environment variable next
 	if apiURL := os.Getenv("HOSTODO_API_URL"); apiURL != "" {
 		u, err := url.Parse(apiURL)
-		if err != nil || u.Scheme != "https" || u.Host == "" {
+		if err != nil || u.Host == "" || !isAllowedScheme(u.Scheme) {
 			fmt.Fprintf(os.Stderr, "Warning: HOSTODO_API_URL must be an https:// URL, ignoring\n")
 			return "https://api.hostodo.com"
 		}

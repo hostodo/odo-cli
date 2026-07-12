@@ -6,6 +6,7 @@ import (
 
 	"github.com/hostodo/odo-cli/v2/cmd/auth"
 	"github.com/hostodo/odo-cli/v2/cmd/instances"
+	"github.com/hostodo/odo-cli/v2/pkg/config"
 	"github.com/spf13/cobra"
 )
 
@@ -55,6 +56,24 @@ SSH Keys:
   odo keys add <name> <key>        # Add a new SSH key
   odo keys remove <name>           # Remove an SSH key`,
 	Version: Version,
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		forceHTTP, err := cmd.Flags().GetBool("force-http")
+		if err == nil {
+			config.SetAllowHTTPAPIURL(forceHTTP)
+			var apiURL string
+			apiURL, err = cmd.Flags().GetString("api-url")
+			if err == nil {
+				err = config.SetAPIURLOverride(apiURL)
+			}
+		}
+		if err != nil {
+			// A bad --api-url is not a usage mistake; skip cobra's usage
+			// dump and let main.go print the single Error: line
+			cmd.SilenceUsage = true
+			cmd.SilenceErrors = true
+		}
+		return err
+	},
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -106,6 +125,8 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.odo/config.json)")
 	rootCmd.PersistentFlags().String("api-url", "", "API URL (default is https://api.hostodo.com or $HOSTODO_API_URL)")
 	rootCmd.PersistentFlags().MarkHidden("api-url")
+	rootCmd.PersistentFlags().Bool("force-http", false, "Allow http:// API URLs (for local development)")
+	rootCmd.PersistentFlags().MarkHidden("force-http")
 }
 
 // makeHiddenShortcut creates a hidden root-level shortcut that delegates to the given subcommand.
