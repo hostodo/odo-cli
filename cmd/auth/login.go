@@ -211,6 +211,13 @@ func runLogin(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
+	// Persist the API URL this session was issued by, so subsequent commands
+	// talk to the same backend without needing --api-url or HOSTODO_API_URL
+	// on every invocation.
+	if err := config.Save(cfg); err != nil {
+		fmt.Println(warningStyle.Render("  ⚠") + " Could not save config: " + err.Error())
+	}
+
 	// Success!
 	fmt.Println()
 	fmt.Println(successStyle.Render("✓ Successfully authenticated!"))
