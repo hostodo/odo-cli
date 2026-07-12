@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hostodo/hostodo-cli/pkg/auth"
-	"github.com/hostodo/hostodo-cli/pkg/config"
+	"github.com/hostodo/odo-cli/v2/pkg/auth"
+	"github.com/hostodo/odo-cli/v2/pkg/config"
 )
 
 // newTestClient creates a Client pointed at a test server.

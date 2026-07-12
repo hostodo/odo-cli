@@ -8,7 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/hostodo/hostodo-cli/pkg/api"
+	"github.com/hostodo/odo-cli/v2/pkg/api"
 )
 
 // ViewMode represents the current view mode

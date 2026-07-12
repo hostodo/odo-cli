@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/hostodo/hostodo-cli/cmd/auth"
-	"github.com/hostodo/hostodo-cli/cmd/instances"
+	"github.com/hostodo/odo-cli/v2/cmd/auth"
+	"github.com/hostodo/odo-cli/v2/cmd/instances"
 	"github.com/spf13/cobra"
 )
 

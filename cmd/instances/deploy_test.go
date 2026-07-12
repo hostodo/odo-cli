@@ -3,7 +3,7 @@ package instances
 import (
 	"testing"
 
-	"github.com/hostodo/hostodo-cli/pkg/api"
+	"github.com/hostodo/odo-cli/v2/pkg/api"
 )
 
 var testTemplates = []api.Template{

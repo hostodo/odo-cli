@@ -18,8 +18,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/common-nighthawk/go-figure"
-	"github.com/hostodo/hostodo-cli/pkg/auth"
-	"github.com/hostodo/hostodo-cli/pkg/config"
+	"github.com/hostodo/odo-cli/v2/pkg/auth"
+	"github.com/hostodo/odo-cli/v2/pkg/config"
 	"github.com/spf13/cobra"
 )
 

@@ -6,9 +6,9 @@ import (
 	"os"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/hostodo/hostodo-cli/pkg/api"
-	"github.com/hostodo/hostodo-cli/pkg/auth"
-	"github.com/hostodo/hostodo-cli/pkg/config"
+	"github.com/hostodo/odo-cli/v2/pkg/api"
+	"github.com/hostodo/odo-cli/v2/pkg/auth"
+	"github.com/hostodo/odo-cli/v2/pkg/config"
 	"github.com/spf13/cobra"
 )
 
