@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/google/uuid"
 )
@@ -15,6 +16,10 @@ const (
 	configDir    = ".odo"
 	oldConfigDir = ".hostodo"
 	configFile   = "config.json"
+
+	// productionAPIHost is the production API domain. --force-http never
+	// applies to it: plaintext http:// against production is always rejected.
+	productionAPIHost = "api.hostodo.com"
 )
 
 // Config represents the CLI configuration
@@ -148,6 +153,9 @@ func SetAPIURLOverride(rawURL string) error {
 		}
 		return fmt.Errorf("--api-url must be an https:// URL (use --force-http to allow http), got %q", rawURL)
 	}
+	if u.Scheme == "http" && isProductionHost(u.Hostname()) {
+		return fmt.Errorf("--force-http is not allowed with the production API (%s); use https://", productionAPIHost)
+	}
 	apiURLOverride = rawURL
 	return nil
 }
@@ -156,6 +164,11 @@ func SetAPIURLOverride(rawURL string) error {
 // https always, http only when --force-http is in effect.
 func isAllowedScheme(scheme string) bool {
 	return scheme == "https" || (scheme == "http" && allowHTTPAPIURL)
+}
+
+// isProductionHost reports whether hostname is the production API domain.
+func isProductionHost(hostname string) bool {
+	return strings.EqualFold(strings.TrimSuffix(hostname, "."), productionAPIHost)
 }
 
 // Load reads the configuration from disk
@@ -248,6 +261,10 @@ func apiURLFromEnv() string {
 		fmt.Fprintf(os.Stderr, "Warning: HOSTODO_API_URL must be an https:// URL, ignoring\n")
 		return ""
 	}
+	if u.Scheme == "http" && isProductionHost(u.Hostname()) {
+		fmt.Fprintf(os.Stderr, "Warning: --force-http is not allowed with the production API (%s), ignoring HOSTODO_API_URL\n", productionAPIHost)
+		return ""
+	}
 	return apiURL
 }
 
@@ -262,7 +279,7 @@ func GetDefaultAPIURL() string {
 		return envURL
 	}
 	// Default to production API
-	return "https://api.hostodo.com"
+	return "https://" + productionAPIHost
 }
 
 // GetDefaultConfig returns a default configuration

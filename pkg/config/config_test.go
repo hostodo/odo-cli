@@ -95,6 +95,40 @@ func TestSetAPIURLOverride_HTTPAllowedWithForce(t *testing.T) {
 	}
 }
 
+func TestSetAPIURLOverride_HTTPProductionRejectedEvenWithForce(t *testing.T) {
+	t.Cleanup(func() {
+		SetAllowHTTPAPIURL(false)
+		SetAPIURLOverride("")
+	})
+
+	SetAllowHTTPAPIURL(true)
+	for _, rawURL := range []string{
+		"http://api.hostodo.com",
+		"http://api.hostodo.com:8000",
+		"http://API.HOSTODO.COM",
+		"http://api.hostodo.com.",
+	} {
+		if err := SetAPIURLOverride(rawURL); err == nil {
+			t.Errorf("expected error for %s even with force-http, got nil", rawURL)
+		}
+	}
+	if url := GetDefaultAPIURL(); url != "https://api.hostodo.com" {
+		t.Errorf("rejected override must not stick, got %s", url)
+	}
+}
+
+func TestSetAPIURLOverride_HTTPSProductionAllowedWithForce(t *testing.T) {
+	t.Cleanup(func() {
+		SetAllowHTTPAPIURL(false)
+		SetAPIURLOverride("")
+	})
+
+	SetAllowHTTPAPIURL(true)
+	if err := SetAPIURLOverride("https://api.hostodo.com"); err != nil {
+		t.Fatalf("https production URL must stay valid with force-http: %v", err)
+	}
+}
+
 func TestSetAPIURLOverride_NonHTTPSchemeRejectedWithForce(t *testing.T) {
 	t.Cleanup(func() { SetAllowHTTPAPIURL(false) })
 
@@ -111,6 +145,16 @@ func TestGetDefaultAPIURL_HTTPEnvVarAllowedWithForce(t *testing.T) {
 	SetAllowHTTPAPIURL(true)
 	if url := GetDefaultAPIURL(); url != "http://localdev.hostodo.com:8000" {
 		t.Errorf("expected http env URL with force-http, got %s", url)
+	}
+}
+
+func TestGetDefaultAPIURL_HTTPProductionEnvVarIgnoredEvenWithForce(t *testing.T) {
+	t.Setenv("HOSTODO_API_URL", "http://api.hostodo.com")
+	t.Cleanup(func() { SetAllowHTTPAPIURL(false) })
+
+	SetAllowHTTPAPIURL(true)
+	if url := GetDefaultAPIURL(); url != "https://api.hostodo.com" {
+		t.Errorf("expected http production env URL to be ignored, got %s", url)
 	}
 }
 
