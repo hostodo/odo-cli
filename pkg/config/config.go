@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/google/uuid"
 )
@@ -15,6 +16,10 @@ const (
 	configDir    = ".odo"
 	oldConfigDir = ".hostodo"
 	configFile   = "config.json"
+
+	// productionAPIHost is the production API domain. --force-http never
+	// applies to it: plaintext http:// against production is always rejected.
+	productionAPIHost = "api.hostodo.com"
 )
 
 // Config represents the CLI configuration
@@ -119,6 +124,53 @@ func EnsureConfigDir() error {
 	return nil
 }
 
+// apiURLOverride is a process-wide API URL override set from the --api-url
+// flag. It takes precedence over HOSTODO_API_URL and the config file.
+var apiURLOverride string
+
+// allowHTTPAPIURL relaxes the https:// requirement for API URL overrides.
+// Set from the --force-http flag, for pointing at a local dev backend.
+var allowHTTPAPIURL bool
+
+// SetAllowHTTPAPIURL toggles whether http:// API URLs are accepted from
+// --api-url and HOSTODO_API_URL. Call before SetAPIURLOverride.
+func SetAllowHTTPAPIURL(allow bool) {
+	allowHTTPAPIURL = allow
+}
+
+// SetAPIURLOverride sets the API URL override, typically from the --api-url
+// flag. Passing an empty string clears the override. The URL must be an
+// https:// URL with a host, unless SetAllowHTTPAPIURL(true) was called.
+func SetAPIURLOverride(rawURL string) error {
+	if rawURL == "" {
+		apiURLOverride = ""
+		return nil
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil || u.Host == "" || !isAllowedScheme(u.Scheme) {
+		if allowHTTPAPIURL {
+			return fmt.Errorf("--api-url must be an http(s):// URL, got %q", rawURL)
+		}
+		return fmt.Errorf("--api-url must be an https:// URL (use --force-http to allow http), got %q", rawURL)
+	}
+	if u.Scheme == "http" && isProductionHost(u.Hostname()) {
+		return fmt.Errorf("--force-http is not allowed with the production API (%s); use https://", productionAPIHost)
+	}
+	apiURLOverride = rawURL
+	return nil
+}
+
+// isAllowedScheme reports whether an API URL scheme is acceptable:
+// https always, http only when --force-http is in effect.
+func isAllowedScheme(scheme string) bool {
+	return scheme == "https" || (scheme == "http" && allowHTTPAPIURL)
+}
+
+// isProductionHost reports whether hostname is the production API domain.
+func isProductionHost(hostname string) bool {
+	return strings.EqualFold(strings.TrimSuffix(hostname, "."), productionAPIHost)
+}
+
 // Load reads the configuration from disk
 func Load() (*Config, error) {
 	configPath, err := GetConfigPath()
@@ -144,8 +196,12 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("failed to parse config file: %w", err)
 	}
 
-	// If API URL is not set in config, use default
-	if config.APIURL == "" {
+	// Precedence: --api-url flag > HOSTODO_API_URL > config file > default
+	if apiURLOverride != "" {
+		config.APIURL = apiURLOverride
+	} else if envURL := apiURLFromEnv(); envURL != "" {
+		config.APIURL = envURL
+	} else if config.APIURL == "" {
 		config.APIURL = GetDefaultAPIURL()
 	}
 
@@ -193,19 +249,37 @@ func Clear() error {
 	return nil
 }
 
+// apiURLFromEnv returns a validated HOSTODO_API_URL value, or "" when the
+// variable is unset or invalid (invalid values print a warning).
+func apiURLFromEnv() string {
+	apiURL := os.Getenv("HOSTODO_API_URL")
+	if apiURL == "" {
+		return ""
+	}
+	u, err := url.Parse(apiURL)
+	if err != nil || u.Host == "" || !isAllowedScheme(u.Scheme) {
+		fmt.Fprintf(os.Stderr, "Warning: HOSTODO_API_URL must be an https:// URL, ignoring\n")
+		return ""
+	}
+	if u.Scheme == "http" && isProductionHost(u.Hostname()) {
+		fmt.Fprintf(os.Stderr, "Warning: --force-http is not allowed with the production API (%s), ignoring HOSTODO_API_URL\n", productionAPIHost)
+		return ""
+	}
+	return apiURL
+}
+
 // GetDefaultAPIURL returns the default API URL
 func GetDefaultAPIURL() string {
-	// Check environment variable first
-	if apiURL := os.Getenv("HOSTODO_API_URL"); apiURL != "" {
-		u, err := url.Parse(apiURL)
-		if err != nil || u.Scheme != "https" || u.Host == "" {
-			fmt.Fprintf(os.Stderr, "Warning: HOSTODO_API_URL must be an https:// URL, ignoring\n")
-			return "https://api.hostodo.com"
-		}
-		return apiURL
+	// The --api-url flag takes precedence over everything
+	if apiURLOverride != "" {
+		return apiURLOverride
+	}
+	// Check environment variable next
+	if envURL := apiURLFromEnv(); envURL != "" {
+		return envURL
 	}
 	// Default to production API
-	return "https://api.hostodo.com"
+	return "https://" + productionAPIHost
 }
 
 // GetDefaultConfig returns a default configuration
