@@ -2,7 +2,9 @@ package deploy
 
 import (
 	"fmt"
-	"math/rand"
+	// Non-crypto randomness is fine here: generated instance names are scoped
+	// to the user's own account and are not global identifiers.
+	"math/rand" // nosemgrep: go.lang.security.audit.crypto.math_random.math-random-used
 	"regexp"
 )
 
