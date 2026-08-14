@@ -85,7 +85,7 @@ var (
 // GetStatusStyle returns the appropriate style for a status
 func GetStatusStyle(status string) lipgloss.Style {
 	switch status {
-	case "running":
+	case "running", "active":
 		return StatusRunningStyle
 	case "stopped":
 		return StatusStoppedStyle
