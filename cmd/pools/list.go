@@ -51,14 +51,17 @@ func runList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to list pools: %w", err)
 	}
 
+	if poolsJSONFlag {
+		if pools == nil {
+			pools = []api.ResourcePool{}
+		}
+		return printJSON(pools)
+	}
+
 	if len(pools) == 0 {
 		fmt.Println("No Hostodo pools found.")
 		fmt.Println("Buy one with: odo pools buy")
 		return nil
-	}
-
-	if poolsJSONFlag {
-		return printJSON(pools)
 	}
 
 	fmt.Println(ui.FormatPoolsTable(pools))
