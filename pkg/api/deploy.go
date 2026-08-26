@@ -134,6 +134,23 @@ func (c *Client) CreateDeployOrder(req DeployRequest) (*DeployResponse, error) {
 	return &deployResp, nil
 }
 
+// CreatePoolVM creates a $0 VM inside a Hostodo capacity subscription.
+func (c *Client) CreatePoolVM(req map[string]interface{}) (map[string]interface{}, error) {
+	path := "/client/instances/create_in_pool/"
+
+	resp, err := c.Post(path, req)
+	if err != nil {
+		return nil, err
+	}
+
+	var out map[string]interface{}
+	if err := parseResponse(resp, &out); err != nil {
+		return nil, err
+	}
+
+	return out, nil
+}
+
 // CheckHostnameExists checks if a hostname is already in use
 func (c *Client) CheckHostnameExists(hostname string) (bool, error) {
 	// Use ListInstances to get all instances and check for hostname collision
