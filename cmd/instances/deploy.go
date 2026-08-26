@@ -27,6 +27,7 @@ var (
 	sshKeyFlag       string
 	billingCycleFlag string
 	promoFlag        string
+	poolFlag         string
 	yesFlag          bool
 	jsonFlag         bool
 )
@@ -57,6 +58,9 @@ Examples:
   # Apply a promo code
   odo instances deploy --promo LETCLI
 
+  # Create a $0 VM inside a Hostodo capacity subscription
+  odo instances deploy --pool pool::abc123 --os "Ubuntu 24.04" --region DET01 --plan EPYC-2G1C32GN --hostname web-1 --yes
+
   # JSON output (requires all selection flags)
   odo instances deploy --os "Ubuntu 22.04" --region "Los Angeles" --plan KVM-2G --json`,
 	RunE: runDeploy,
@@ -70,6 +74,7 @@ func init() {
 	DeployCmd.Flags().StringVar(&sshKeyFlag, "ssh-key", "", "SSH key name to use for authentication")
 	DeployCmd.Flags().StringVar(&billingCycleFlag, "billing-cycle", "", "Billing cycle (monthly, annually, semiannually, biennially, triennially)")
 	DeployCmd.Flags().StringVar(&promoFlag, "promo", "", "Promo code for a discount")
+	DeployCmd.Flags().StringVar(&poolFlag, "pool", "", "Create a $0 VM inside a Hostodo capacity pool_id")
 	DeployCmd.Flags().BoolVarP(&yesFlag, "yes", "y", false, "Skip confirmation prompt")
 	DeployCmd.Flags().BoolVar(&jsonFlag, "json", false, "JSON output mode (requires --os, --region, --plan)")
 }
@@ -89,6 +94,10 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 	client, err := api.NewClient(cfg)
 	if err != nil {
 		return fmt.Errorf("failed to create API client: %w", err)
+	}
+
+	if poolFlag != "" {
+		return runDeployInPool(client)
 	}
 
 	// Fetch available options
@@ -946,4 +955,92 @@ func mapEventMessage(msg string) string {
 		}
 		return ""
 	}
+}
+
+// runDeployInPool creates a $0 capacity VM (no order/invoice/payment).
+func runDeployInPool(client *api.Client) error {
+	if osFlag == "" || regionFlag == "" || planFlag == "" || hostnameFlag == "" {
+		return fmt.Errorf("--pool requires --os, --region, --plan, and --hostname")
+	}
+
+	templates, err := client.ListTemplates()
+	if err != nil {
+		return fmt.Errorf("failed to load OS templates: %w", err)
+	}
+	regions, err := client.ListRegions()
+	if err != nil {
+		return fmt.Errorf("failed to load regions: %w", err)
+	}
+	plans, err := client.ListPlans()
+	if err != nil {
+		return fmt.Errorf("failed to load plans: %w", err)
+	}
+
+	selectedTemplate, err := selectTemplate(templates, osFlag, true)
+	if err != nil {
+		return err
+	}
+	selectedRegion, err := selectRegion(regions, regionFlag, true)
+	if err != nil {
+		return err
+	}
+	var selectedPlan *api.Plan
+	for i := range plans {
+		if strings.EqualFold(plans[i].Name, planFlag) {
+			selectedPlan = &plans[i]
+			break
+		}
+	}
+	if selectedPlan == nil {
+		return fmt.Errorf("plan not found: %s", planFlag)
+	}
+
+	hostname, err := resolveHostname(client, hostnameFlag)
+	if err != nil {
+		return err
+	}
+
+	req := map[string]interface{}{
+		"pool_id":     poolFlag,
+		"hostname":    hostname,
+		"region_id":   selectedRegion.ID,
+		"template_id": selectedTemplate.ID,
+		"plan_id":     selectedPlan.ID,
+	}
+	if sshKeyFlag != "" {
+		keys, err := client.ListSSHKeys()
+		if err != nil {
+			return err
+		}
+		matched := false
+		for _, k := range keys {
+			if strings.EqualFold(k.Name, sshKeyFlag) {
+				req["ssh_key_id"] = k.ID
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return fmt.Errorf("SSH key not found: %s", sshKeyFlag)
+		}
+	}
+
+	if !yesFlag && !jsonFlag {
+		fmt.Printf("Create VM %s in capacity %s for $0? [y/N] ", hostname, poolFlag)
+		var answer string
+		if _, err := fmt.Scanln(&answer); err != nil {
+			return fmt.Errorf("failed to read confirmation: %w", err)
+		}
+		if strings.ToLower(strings.TrimSpace(answer)) != "y" && strings.ToLower(strings.TrimSpace(answer)) != "yes" {
+			return fmt.Errorf("cancelled")
+		}
+	}
+
+	out, err := client.CreatePoolVM(req)
+	if err != nil {
+		return err
+	}
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	return enc.Encode(out)
 }

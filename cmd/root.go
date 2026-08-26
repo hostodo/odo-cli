@@ -44,6 +44,10 @@ Billing:
   odo invoices                     # List your invoices
   odo pay <invoice-id>             # Pay an invoice
 
+Capacity:
+  odo pools list                   # List capacity subscriptions
+  odo pools show <pool-id>         # Show capacity quota and usage
+
 Support:
   odo tickets list                 # List support tickets
   odo tickets open <subject>       # Open a support ticket
@@ -96,6 +100,9 @@ func init() {
 	// Billing commands
 	rootCmd.AddCommand(invoicesCmd)
 	rootCmd.AddCommand(payCmd)
+
+	// Capacity subscriptions
+	rootCmd.AddCommand(poolsCmd)
 
 	// Support ticket commands
 	rootCmd.AddCommand(ticketsCmd)
