@@ -340,3 +340,220 @@ func FormatSSHKeysTable(displayKeys []SSHKeyDisplay) string {
 
 	return sb.String()
 }
+
+func formatRAMGB(mb int) string {
+	if mb <= 0 {
+		return "0 GB"
+	}
+	if mb%1024 == 0 {
+		return fmt.Sprintf("%d GB", mb/1024)
+	}
+	return fmt.Sprintf("%.1f GB", float64(mb)/1024.0)
+}
+
+func formatBandwidth(gb int) string {
+	if gb <= 0 {
+		return "0 GB"
+	}
+	if gb >= 1024 && gb%1024 == 0 {
+		return fmt.Sprintf("%d TB", gb/1024)
+	}
+	if gb >= 1024 {
+		return fmt.Sprintf("%.1f TB", float64(gb)/1024.0)
+	}
+	return fmt.Sprintf("%d GB", gb)
+}
+
+func usedOf(used, total int, unit string) string {
+	if unit == "" {
+		return fmt.Sprintf("%d/%d", used, total)
+	}
+	return fmt.Sprintf("%d/%d %s", used, total, unit)
+}
+
+// FormatPoolsTable formats Hostodo pools as an ASCII table.
+func FormatPoolsTable(pools []api.ResourcePool) string {
+	if len(pools) == 0 {
+		return "No Hostodo pools found"
+	}
+
+	const (
+		idWidth     = 16
+		nameWidth   = 18
+		statusWidth = 10
+		ramWidth    = 14
+		vcpuWidth   = 10
+		diskWidth   = 12
+		vmsWidth    = 8
+		billWidth   = 16
+	)
+
+	var sb strings.Builder
+	header := fmt.Sprintf(
+		"%-*s  %-*s  %-*s  %-*s  %-*s  %-*s  %-*s  %-*s",
+		idWidth, "POOL ID",
+		nameWidth, "NAME",
+		statusWidth, "STATUS",
+		ramWidth, "RAM",
+		vcpuWidth, "VCPU",
+		diskWidth, "DISK",
+		vmsWidth, "VMS",
+		billWidth, "BILLING",
+	)
+	sb.WriteString(header + "\n")
+	sb.WriteString(strings.Repeat("-", len(header)) + "\n")
+
+	for _, pool := range pools {
+		billing := "-"
+		if pool.BillingAmount != "" {
+			cycle := pool.BillingCycle
+			if cycle == "" {
+				cycle = "monthly"
+			}
+			billing = "$" + pool.BillingAmount + "/" + cycle
+		}
+		row := fmt.Sprintf(
+			"%-*s  %-*s  %-*s  %-*s  %-*s  %-*s  %-*s  %-*s",
+			idWidth, truncate(pool.PoolID, idWidth),
+			nameWidth, truncate(pool.Label(), nameWidth),
+			statusWidth, truncate(pool.Status, statusWidth),
+			ramWidth, truncate(formatRAMGB(pool.Usage.RAMMB)+"/"+formatRAMGB(pool.Quota.RAMMB), ramWidth),
+			vcpuWidth, truncate(usedOf(pool.Usage.VCPU, pool.Quota.VCPU, ""), vcpuWidth),
+			diskWidth, truncate(usedOf(pool.Usage.DiskGB, pool.Quota.DiskGB, "GB"), diskWidth),
+			vmsWidth, truncate(usedOf(pool.Usage.Instances, pool.Quota.Instances, ""), vmsWidth),
+			billWidth, truncate(billing, billWidth),
+		)
+		sb.WriteString(row + "\n")
+	}
+
+	return sb.String()
+}
+
+// FormatPoolDetail formats a single Hostodo pool including members.
+func FormatPoolDetail(pool *api.ResourcePoolDetail) string {
+	var sb strings.Builder
+	sb.WriteString(TitleStyle.Render("Pool: "+pool.Label()) + "\n")
+	sb.WriteString(fmt.Sprintf("  ID:           %s\n", pool.PoolID))
+	sb.WriteString(fmt.Sprintf("  Status:       %s\n", GetStatusStyle(pool.Status).Render(pool.Status)))
+	if pool.BillingAmount != "" {
+		cycle := pool.BillingCycle
+		if cycle == "" {
+			cycle = "monthly"
+		}
+		sb.WriteString(fmt.Sprintf("  Billing:      $%s / %s\n", pool.BillingAmount, cycle))
+	}
+	if pool.NextDueDate != "" {
+		sb.WriteString(fmt.Sprintf("  Next due:     %s\n", pool.NextDueDate))
+	}
+	sb.WriteString(fmt.Sprintf("  Auto-renew:   %t\n", pool.AutorenewalEnabled))
+	sb.WriteString("\n")
+
+	sb.WriteString(HeaderStyle.Render("Quota") + "\n")
+	sb.WriteString(fmt.Sprintf("  RAM:          %s / %s\n", formatRAMGB(pool.Usage.RAMMB), formatRAMGB(pool.Quota.RAMMB)))
+	sb.WriteString(fmt.Sprintf("  vCPU:         %d / %d (max %d per VM)\n", pool.Usage.VCPU, pool.Quota.VCPU, pool.Quota.MaxVCPUPerInstance))
+	sb.WriteString(fmt.Sprintf("  Disk:         %d / %d GB\n", pool.Usage.DiskGB, pool.Quota.DiskGB))
+	sb.WriteString(fmt.Sprintf("  Bandwidth:    %s / %s\n", formatBandwidth(pool.Usage.BandwidthGB), formatBandwidth(pool.Quota.BandwidthGB)))
+	sb.WriteString(fmt.Sprintf("  VMs:          %d / %d\n", pool.Usage.Instances, pool.Quota.Instances))
+	sb.WriteString(fmt.Sprintf("  IPs:          %d / %d\n", pool.Usage.IPs, pool.Quota.IPs))
+	sb.WriteString("\n")
+
+	sb.WriteString(HeaderStyle.Render("Members") + "\n")
+	if len(pool.Members) == 0 {
+		sb.WriteString("  No VMs in this pool. Create one with: odo pools vm\n")
+		return sb.String()
+	}
+
+	const (
+		hostWidth   = 22
+		ipWidth     = 16
+		statusWidth = 12
+		vcpuWidth   = 6
+		ramWidth    = 8
+		diskWidth   = 8
+		regionWidth = 10
+	)
+	header := fmt.Sprintf(
+		"  %-*s  %-*s  %-*s  %*s  %*s  %*s  %-*s",
+		hostWidth, "HOSTNAME",
+		ipWidth, "IP",
+		statusWidth, "STATUS",
+		vcpuWidth, "VCPU",
+		ramWidth, "RAM",
+		diskWidth, "DISK",
+		regionWidth, "REGION",
+	)
+	sb.WriteString(header + "\n")
+	sb.WriteString("  " + strings.Repeat("-", len(header)-2) + "\n")
+	for _, m := range pool.Members {
+		sb.WriteString(fmt.Sprintf(
+			"  %-*s  %-*s  %-*s  %*d  %*s  %*s  %-*s\n",
+			hostWidth, truncate(m.Hostname, hostWidth),
+			ipWidth, truncate(m.MainIP, ipWidth),
+			statusWidth, truncate(m.Status, statusWidth),
+			vcpuWidth, m.VCPU,
+			ramWidth, formatRAMGB(m.RAM),
+			diskWidth, fmt.Sprintf("%d GB", m.Disk),
+			regionWidth, truncate(m.Region, regionWidth),
+		))
+	}
+	return sb.String()
+}
+
+// FormatPoolOptionsTable formats pool tiers as an ASCII table.
+func FormatPoolOptionsTable(options *api.PoolOptionsResponse) string {
+	if options == nil || len(options.Tiers) == 0 {
+		return "No Hostodo pool tiers available"
+	}
+
+	var sb strings.Builder
+	if options.CurrentPoolID != "" {
+		sb.WriteString(fmt.Sprintf("Current pool: %s\n\n", options.CurrentPoolID))
+	} else {
+		sb.WriteString("No active Hostodo pool.\n\n")
+	}
+
+	const (
+		idWidth    = 6
+		nameWidth  = 18
+		flagWidth  = 12
+		ramWidth   = 8
+		vcpuWidth  = 6
+		diskWidth  = 8
+		vmsWidth   = 6
+		priceWidth = 10
+	)
+	header := fmt.Sprintf(
+		"%-*s  %-*s  %-*s  %-*s  %-*s  %-*s  %-*s  %*s",
+		idWidth, "ID",
+		nameWidth, "NAME",
+		flagWidth, "FLAG",
+		ramWidth, "RAM",
+		vcpuWidth, "VCPU",
+		diskWidth, "DISK",
+		vmsWidth, "VMS",
+		priceWidth, "PRICE/MO",
+	)
+	sb.WriteString(header + "\n")
+	sb.WriteString(strings.Repeat("-", len(header)) + "\n")
+	for _, tier := range options.Tiers {
+		flag := tier.Flag
+		if flag == "" && tier.IsCurrent {
+			flag = "current"
+		}
+		if flag == "" {
+			flag = "available"
+		}
+		sb.WriteString(fmt.Sprintf(
+			"%-*s  %-*s  %-*s  %-*s  %-*s  %-*s  %-*s  %*s\n",
+			idWidth, fmt.Sprintf("%d", tier.ID),
+			nameWidth, truncate(tier.Name, nameWidth),
+			flagWidth, truncate(flag, flagWidth),
+			ramWidth, truncate(formatRAMGB(tier.RAMMB), ramWidth),
+			vcpuWidth, fmt.Sprintf("%d", tier.TotalVCPU),
+			diskWidth, fmt.Sprintf("%d GB", tier.DiskGB),
+			vmsWidth, fmt.Sprintf("%d", tier.MaxInstances),
+			priceWidth, "$"+tier.PriceMonthly,
+		))
+	}
+	return sb.String()
+}

@@ -1,6 +1,9 @@
 package api
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"strings"
+)
 
 // LoginRequest represents the login credentials
 type LoginRequest struct {
@@ -344,4 +347,184 @@ type TicketCreateRequest struct {
 type TicketReplyRequest struct {
 	Content      string `json:"content"`
 	InternalNote bool   `json:"internal_note,omitempty"`
+}
+
+// PoolQuota is used/remaining/limit capacity for a Hostodo pool.
+type PoolQuota struct {
+	Instances          int `json:"instances"`
+	VCPU               int `json:"vcpu"`
+	RAMMB              int `json:"ram_mb"`
+	DiskGB             int `json:"disk_gb"`
+	BandwidthGB        int `json:"bandwidth_gb"`
+	IPs                int `json:"ips"`
+	MaxVCPUPerInstance int `json:"max_vcpu_per_instance,omitempty"`
+}
+
+// ResourcePool is a Hostodo capacity pool summary.
+type ResourcePool struct {
+	PoolID             string    `json:"pool_id"`
+	DisplayName        string    `json:"display_name"`
+	Status             string    `json:"status"`
+	Enforcement        string    `json:"enforcement"`
+	PlanID             int       `json:"plan_id"`
+	BillingAmount      string    `json:"billing_amount"`
+	BillingCycle       string    `json:"billing_cycle"`
+	NextDueDate        string    `json:"next_due_date"`
+	AutorenewalEnabled bool      `json:"autorenewal_enabled"`
+	Quota              PoolQuota `json:"quota"`
+	Usage              PoolQuota `json:"usage"`
+	Remaining          PoolQuota `json:"remaining"`
+	CreatedAt          string    `json:"created_at"`
+	UpdatedAt          string    `json:"updated_at"`
+}
+
+// Label is the customer-facing pool name, falling back to pool_id.
+func (p ResourcePool) Label() string {
+	name := strings.TrimSpace(p.DisplayName)
+	if name != "" {
+		return name
+	}
+	return p.PoolID
+}
+
+// ResourcePoolMember is a VM billed against a pool.
+type ResourcePoolMember struct {
+	InstanceID string `json:"instance_id"`
+	Hostname   string `json:"hostname"`
+	Status     string `json:"status"`
+	MainIP     string `json:"main_ip"`
+	VCPU       int    `json:"vcpu"`
+	RAM        int    `json:"ram"`
+	Disk       int    `json:"disk"`
+	Bandwidth  int    `json:"bandwidth"`
+	Region     string `json:"region"`
+	PlanName   string `json:"plan_name"`
+}
+
+// ResourcePoolDetail is a pool plus member VMs and region counts.
+type ResourcePoolDetail struct {
+	ResourcePool
+	Members           []ResourcePoolMember `json:"members"`
+	Regions           []PoolRegionCount    `json:"regions"`
+	DowngradeBlockers []string             `json:"downgrade_blockers"`
+}
+
+// PoolRegionCount is how many pool VMs live in a region.
+type PoolRegionCount struct {
+	Region string `json:"region"`
+	Count  int    `json:"count"`
+}
+
+// ResourcePoolsResponse is the paginated pool list.
+type ResourcePoolsResponse struct {
+	Results []ResourcePool `json:"results"`
+	Count   int            `json:"count"`
+}
+
+// PoolTier is a buyable/upgradable Hostodo pool plan.
+type PoolTier struct {
+	ID                 int     `json:"id"`
+	Name               string  `json:"name"`
+	PriceMonthly       string  `json:"price_monthly"`
+	PriceAnnually      string  `json:"price_annually"`
+	PriceSemiannually  string  `json:"price_semiannually"`
+	PriceBiennially    string  `json:"price_biennially"`
+	PriceTriennially   string  `json:"price_triennially"`
+	RAMMB              int     `json:"ram_mb"`
+	TotalVCPU          int     `json:"total_vcpu"`
+	MaxVCPUPerInstance int     `json:"max_vcpu_per_instance"`
+	DiskGB             int     `json:"disk_gb"`
+	BandwidthGB        int     `json:"bandwidth_gb"`
+	MaxInstances       int     `json:"max_instances"`
+	MaxIPs             int     `json:"max_ips"`
+	DollarsPerGB       float64 `json:"dollars_per_gb"`
+	SelfServe          bool    `json:"self_serve"`
+	Flag               string  `json:"flag"`
+	IsCurrent          bool    `json:"is_current"`
+}
+
+// PoolOptionsResponse is the pool catalog plus the caller's current pool.
+type PoolOptionsResponse struct {
+	BillingCycles []string   `json:"billing_cycles"`
+	CurrentPoolID string     `json:"current_pool_id"`
+	Tiers         []PoolTier `json:"tiers"`
+}
+
+// PoolCheckoutRequest buys or upgrades a Hostodo pool.
+type PoolCheckoutRequest struct {
+	PlanID          int    `json:"plan_id"`
+	TargetPlanID    int    `json:"target_plan_id,omitempty"`
+	BillingCycle    string `json:"billing_cycle,omitempty"`
+	PaymentMethod   string `json:"payment_method,omitempty"`
+	PaymentMethodID string `json:"payment_method_id,omitempty"`
+	Promocode       string `json:"promocode,omitempty"`
+	IdempotencyKey  string `json:"idempotency_key,omitempty"`
+	QuoteOnly       bool   `json:"quote_only,omitempty"`
+	Confirm         bool   `json:"confirm,omitempty"`
+}
+
+// PoolQuote is a purchase/upgrade price quote.
+type PoolQuote struct {
+	PlanID               int         `json:"plan_id"`
+	PlanName             string      `json:"plan_name"`
+	BillingCycle         string      `json:"billing_cycle"`
+	Mode                 string      `json:"mode"`
+	ExistingPoolID       string      `json:"existing_pool_id"`
+	UnitPrice            json.Number `json:"unit_price"`
+	Subtotal             json.Number `json:"subtotal"`
+	RecurringAmount      json.Number `json:"recurring_amount"`
+	CreditsAvailable     json.Number `json:"credits_available"`
+	CreditsApplied       json.Number `json:"credits_applied_if_created"`
+	AmountDueAfterCredit json.Number `json:"amount_due_after_credit"`
+	PromocodeApplied     bool        `json:"promocode_applied"`
+	InvoiceDate          string      `json:"invoice_date"`
+	NextDueDate          string      `json:"next_due_date"`
+	Quota                PoolQuota   `json:"quota"`
+}
+
+// PoolCheckoutResponse is returned after buying or upgrading a pool.
+type PoolCheckoutResponse struct {
+	Mode           string                 `json:"mode"`
+	OrderNumber    string                 `json:"order_number"`
+	InvoiceNumber  string                 `json:"invoice_number"`
+	AmountDue      string                 `json:"amount_due"`
+	UnitPrice      string                 `json:"unit_price"`
+	PlanID         int                    `json:"plan_id"`
+	PlanName       string                 `json:"plan_name"`
+	PoolID         string                 `json:"pool_id"`
+	ExistingPoolID string                 `json:"existing_pool_id"`
+	CheckoutURL    string                 `json:"checkout_url"`
+	Checkout       map[string]interface{} `json:"checkout"`
+	PaymentMethod  string                 `json:"payment_method"`
+}
+
+// CreatePoolVMRequest creates a $0 gen2 VM inside a pool.
+type CreatePoolVMRequest struct {
+	PoolID      string `json:"pool_id"`
+	Hostname    string `json:"hostname"`
+	RegionID    int    `json:"region_id,omitempty"`
+	Region      string `json:"region,omitempty"`
+	TemplateID  int    `json:"template_id"`
+	VCPU        int    `json:"vcpu,omitempty"`
+	RAMMB       int    `json:"ram_mb,omitempty"`
+	DiskGB      int    `json:"disk_gb,omitempty"`
+	BandwidthGB int    `json:"bandwidth_gb,omitempty"`
+	PlanID      int    `json:"plan_id,omitempty"`
+	SSHKeyID    int    `json:"ssh_key_id,omitempty"`
+}
+
+// CreatePoolVMResponse is returned after creating a pool VM.
+type CreatePoolVMResponse struct {
+	Instance struct {
+		InstanceID string `json:"instance_id"`
+		PoolID     string `json:"pool_id"`
+		Status     string `json:"status"`
+		Hostname   string `json:"hostname"`
+		MainIP     string `json:"main_ip"`
+		Bandwidth  int    `json:"bandwidth"`
+	} `json:"instance"`
+	Quota struct {
+		Used      PoolQuota `json:"used"`
+		Remaining PoolQuota `json:"remaining"`
+	} `json:"quota"`
 }
