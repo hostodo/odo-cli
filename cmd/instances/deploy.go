@@ -995,9 +995,14 @@ func runDeployInPool(client *api.Client) error {
 		return fmt.Errorf("plan not found: %s", planFlag)
 	}
 
+	hostname, err := resolveHostname(client, hostnameFlag)
+	if err != nil {
+		return err
+	}
+
 	req := map[string]interface{}{
 		"pool_id":     poolFlag,
-		"hostname":    hostnameFlag,
+		"hostname":    hostname,
 		"region_id":   selectedRegion.ID,
 		"template_id": selectedTemplate.ID,
 		"plan_id":     selectedPlan.ID,
@@ -1007,18 +1012,25 @@ func runDeployInPool(client *api.Client) error {
 		if err != nil {
 			return err
 		}
+		matched := false
 		for _, k := range keys {
 			if strings.EqualFold(k.Name, sshKeyFlag) {
 				req["ssh_key_id"] = k.ID
+				matched = true
 				break
 			}
+		}
+		if !matched {
+			return fmt.Errorf("SSH key not found: %s", sshKeyFlag)
 		}
 	}
 
 	if !yesFlag && !jsonFlag {
-		fmt.Printf("Create VM %s in capacity %s for $0? [y/N] ", hostnameFlag, poolFlag)
+		fmt.Printf("Create VM %s in capacity %s for $0? [y/N] ", hostname, poolFlag)
 		var answer string
-		fmt.Scanln(&answer)
+		if _, err := fmt.Scanln(&answer); err != nil {
+			return fmt.Errorf("failed to read confirmation: %w", err)
+		}
 		if strings.ToLower(strings.TrimSpace(answer)) != "y" && strings.ToLower(strings.TrimSpace(answer)) != "yes" {
 			return fmt.Errorf("cancelled")
 		}
