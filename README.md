@@ -162,10 +162,12 @@ releases automatically on process exit; stale directories from the old
 encrypted at rest; saved-card phrases are reconstructed from the supplied card ID,
 safe cached last four digits, and original amount. No plaintext card IDs, provider
 secrets, or credentials are cached. Human output strips terminal control sequences;
-successful `--json` payloads are preserved byte for byte.
-Human-mode retries show the backend phase, order/invoice status, and invoice URL
-on stderr, distinguishing an unresolved outcome from a completed checkout with
-an unpaid invoice. Stdout remains a validated HTTPS checkout URL or raw JSON.
+non-replay successful `--json` payloads are preserved byte for byte.
+Human-mode retries show the backend phase and order/invoice status on stderr,
+distinguishing an unresolved outcome from a completed checkout with an unpaid
+invoice. Replay output omits checkout/provider fields and invoice URLs so secret
+query parameters cannot be exposed; non-replay stdout remains a validated HTTPS
+checkout URL or raw JSON.
 Selecting another tier can change existing Capacity; review the quote's mode
 and recurring amount.
 

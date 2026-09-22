@@ -19,6 +19,8 @@ import (
 
 const poolRetryCacheDir = "capacity-checkouts-v2"
 
+var poolRetrySyncDir = syncPoolRetryDirPlatform
+
 // Persist the quote, safe card ending, and encrypted generic confirmation. Never
 // persist full responses or plaintext credentials, card IDs, or provider secrets.
 type poolRetryRecord struct {
@@ -119,13 +121,24 @@ func (cache *poolRetryCache) failure(err error) error {
 	return fmt.Errorf("Capacity retry cache %s: %w; checkout aborted without fetching a replacement quote. Keep this record and reconcile any prior checkout before using a new key", cache.path, err)
 }
 
-func checkPoolRetryPermissions(path string, directory bool) error {
+func checkPoolRetryPath(path string, directory bool) error {
 	info, err := os.Lstat(path)
 	if err != nil {
 		return err
 	}
 	if info.Mode()&os.ModeSymlink != 0 || info.IsDir() != directory || (!directory && !info.Mode().IsRegular()) {
 		return fmt.Errorf("cache path must be a regular file or directory, without symlinks: %s", path)
+	}
+	return checkPoolRetryOwnership(path, info)
+}
+
+func checkPoolRetryPermissions(path string, directory bool) error {
+	if err := checkPoolRetryPath(path, directory); err != nil {
+		return err
+	}
+	info, err := os.Lstat(path)
+	if err != nil {
+		return err
 	}
 	return checkPoolRetryOwnerPermissions(path, info)
 }
@@ -136,8 +149,12 @@ func (cache *poolRetryCache) load() (*api.ResourcePoolExpectedQuote, error) {
 	}
 	// A missing directory/file is first use. All other failures are fatal: a
 	// damaged retry record must never turn into a fresh checkout.
-	for _, dir := range []string{filepath.Dir(filepath.Dir(cache.path)), filepath.Dir(cache.path)} {
-		if err := checkPoolRetryPermissions(dir, true); err != nil {
+	for i, dir := range []string{filepath.Dir(filepath.Dir(cache.path)), filepath.Dir(cache.path)} {
+		check := checkPoolRetryPermissions
+		if i == 0 {
+			check = checkPoolRetryPath
+		}
+		if err := check(dir, true); err != nil {
 			if os.IsNotExist(err) {
 				return nil, nil
 			}
@@ -179,7 +196,7 @@ func (cache *poolRetryCache) load() (*api.ResourcePoolExpectedQuote, error) {
 		return nil, cache.failure(err)
 	}
 	// Also complete durability if another process just published this record.
-	if err := cache.syncDirs(); err != nil {
+	if err := cache.syncDirs(false); err != nil {
 		return nil, err
 	}
 	confirmation, err := cache.decryptConfirmation(record.Confirmation)
@@ -217,14 +234,17 @@ func (cache *poolRetryCache) save(quote *api.ResourcePoolExpectedQuote) error {
 	if err := validatePoolConfirmation(cache.confirmation); err != nil {
 		return cache.failure(err)
 	}
-	if err := config.EnsureConfigDir(); err != nil {
+	if _, err := ensurePoolRetryConfigDir(configDirForCache(cache.path)); err != nil {
 		return cache.failure(err)
 	}
 	configDir, dir := filepath.Dir(filepath.Dir(cache.path)), filepath.Dir(cache.path)
-	if err := checkPoolRetryPermissions(configDir, true); err != nil {
+	if err := checkPoolRetryPath(configDir, true); err != nil {
 		return cache.failure(err)
 	}
-	if err := os.MkdirAll(dir, 0700); err != nil {
+	cacheDirCreated := false
+	if err := os.Mkdir(dir, 0700); err == nil {
+		cacheDirCreated = true
+	} else if !os.IsExist(err) {
 		return cache.failure(err)
 	}
 	if err := checkPoolRetryPermissions(dir, true); err != nil {
@@ -260,14 +280,22 @@ func (cache *poolRetryCache) save(quote *api.ResourcePoolExpectedQuote) error {
 	if err := publishPoolRetryFile(file.Name(), cache.path); err != nil {
 		return cache.failure(fmt.Errorf("could not save confirmed quote (if the key already exists, retry to load it): %w", err))
 	}
-	return cache.syncDirs()
+	return cache.syncDirs(cacheDirCreated)
 }
 
-func (cache *poolRetryCache) syncDirs() error {
+func configDirForCache(path string) string {
+	return filepath.Dir(filepath.Dir(path))
+}
+
+func (cache *poolRetryCache) syncDirs(cacheDirCreated bool) error {
 	dir := filepath.Dir(cache.path)
 	configDir := filepath.Dir(dir)
-	for _, path := range []string{filepath.Dir(configDir), configDir, dir} {
-		if err := syncPoolRetryDir(path); err != nil {
+	paths := []string{dir}
+	if cacheDirCreated {
+		paths = append([]string{configDir}, paths...)
+	}
+	for _, path := range paths {
+		if err := poolRetrySyncDir(path); err != nil {
 			return cache.failure(err)
 		}
 	}

@@ -5,9 +5,18 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"syscall"
 
 	"golang.org/x/sys/unix"
 )
+
+func checkPoolRetryOwnership(path string, info os.FileInfo) error {
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok || stat.Uid != uint32(os.Geteuid()) {
+		return fmt.Errorf("cache path must be owned by the current user: %s", path)
+	}
+	return nil
+}
 
 func lockPoolRetryFile(file *os.File) error {
 	for {
@@ -25,7 +34,7 @@ func checkPoolRetryOwnerPermissions(path string, info os.FileInfo) error {
 	return nil
 }
 
-func syncPoolRetryDir(path string) error {
+func syncPoolRetryDirPlatform(path string) error {
 	dir, err := os.Open(path)
 	if err != nil {
 		return err

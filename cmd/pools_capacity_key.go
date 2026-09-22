@@ -22,10 +22,7 @@ const poolKeyService = "odo-cli"
 // directory. Once selected, a missing/locked/corrupt key never generates a new
 // key or switches storage. Old unauthenticated records cannot be migrated safely.
 func poolRetrySecret(dir string) ([]byte, error) {
-	if err := config.EnsureConfigDir(); err != nil {
-		return nil, err
-	}
-	if err := checkPoolRetryPermissions(dir, true); err != nil {
+	if _, err := ensurePoolRetryConfigDir(dir); err != nil {
 		return nil, err
 	}
 	path := filepath.Join(dir, "capacity-retry-key")
@@ -113,13 +110,30 @@ func poolRetrySecret(dir string) ([]byte, error) {
 	if err := publishPoolRetryFile(file.Name(), path); err != nil {
 		return nil, err
 	}
-	if err := syncPoolRetryDir(dir); err != nil {
-		return nil, err
-	}
-	if err := syncPoolRetryDir(filepath.Dir(dir)); err != nil {
+	if err := poolRetrySyncDir(dir); err != nil {
 		return nil, err
 	}
 	return secret, nil
+}
+
+func ensurePoolRetryConfigDir(dir string) (bool, error) {
+	_, err := os.Lstat(dir)
+	created := os.IsNotExist(err)
+	if err != nil && !created {
+		return false, err
+	}
+	if err := config.EnsureConfigDir(); err != nil {
+		return false, err
+	}
+	if err := checkPoolRetryPath(dir, true); err != nil {
+		return false, err
+	}
+	if created {
+		if err := poolRetrySyncDir(filepath.Dir(dir)); err != nil {
+			return false, err
+		}
+	}
+	return created, nil
 }
 
 // Keep this file permanently: unlinking it could let waiters lock different

@@ -23,11 +23,6 @@ func marshalPoolReplay(result api.ResourcePoolCheckoutResponse) ([]byte, error) 
 	if result.AmountDue.String() != "" {
 		safe["amount_due"] = result.AmountDue
 	}
-	if result.InvoiceURL != "" {
-		if err := validatePoolCheckoutURL(result.InvoiceURL); err == nil {
-			safe["invoice_url"] = result.InvoiceURL
-		}
-	}
 	data, err := json.MarshalIndent(safe, "", "  ")
 	if err != nil {
 		return nil, err
@@ -52,7 +47,6 @@ func formatPoolReplay(result api.ResourcePoolCheckoutResponse) string {
 		{"Phase", result.Phase}, {"Status", result.Status},
 		{"Order", result.OrderNumber}, {"Order status", result.OrderStatus},
 		{"Invoice", result.InvoiceNumber}, {"Invoice status", result.InvoiceStatus},
-		{"Invoice URL", result.InvoiceURL},
 	} {
 		if field[1] != "" {
 			fmt.Fprintf(&out, "  %s: %s\n", field[0], terminaltext.Clean(field[1]))

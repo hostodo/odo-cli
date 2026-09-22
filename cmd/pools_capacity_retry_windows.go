@@ -8,6 +8,11 @@ import (
 	"golang.org/x/sys/windows"
 )
 
+func checkPoolRetryOwnership(_ string, _ os.FileInfo) error {
+	// Windows profile ACLs, rather than Unix ownership/mode bits, govern access.
+	return nil
+}
+
 func lockPoolRetryFile(file *os.File) error {
 	// os.OpenFile creates a synchronous handle. Without FAIL_IMMEDIATELY,
 	// LockFileEx waits for the exclusive byte-range lock, even on an empty file.
@@ -20,7 +25,7 @@ func checkPoolRetryOwnerPermissions(_ string, _ os.FileInfo) error {
 	return nil
 }
 
-func syncPoolRetryDir(_ string) error {
+func syncPoolRetryDirPlatform(_ string) error {
 	// Windows does not support Go's directory Sync. Publication below requests
 	// write-through after the temporary file's contents have been flushed.
 	return nil

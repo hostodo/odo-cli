@@ -24,7 +24,7 @@ func TestPoolCheckoutReplayOutput(t *testing.T) {
 	} {
 		for _, jsonMode := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/%s/json=%t", tt.phase, tt.invoiceStatus, jsonMode), func(t *testing.T) {
-				body := fmt.Sprintf(`{"idempotent_replay":true,"phase":%q,"status":%q,"invoice_status":%q,"checkout_url":"https://provider.example/stale-secret","checkout":{"client_secret":"secret"},"provider_token":"token","order_number":"ORD-1","order_status":"pending","invoice_number":"INV-1","invoice_url":"https://panel.example/billing/invoices/INV-1","amount_due":"5.0001","unknown":9007199254740993}`, tt.phase, tt.status, tt.invoiceStatus)
+				body := fmt.Sprintf(`{"idempotent_replay":true,"phase":%q,"status":%q,"invoice_status":%q,"checkout_url":"https://provider.example/stale-secret","checkout":{"client_secret":"secret"},"provider_token":"token","order_number":"ORD-1","order_status":"pending","invoice_number":"INV-1","invoice_url":"https://panel.example/billing/invoices/INV-1?provider_secret=invoice-secret","amount_due":"5.0001","unknown":9007199254740993}`, tt.phase, tt.status, tt.invoiceStatus)
 				calls := 0
 				client := poolTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 					calls++
@@ -46,28 +46,32 @@ func TestPoolCheckoutReplayOutput(t *testing.T) {
 				if calls != 2 {
 					t.Fatalf("calls=%d", calls)
 				}
+				for name, stream := range map[string]string{"stdout": out.String(), "stderr": diagnostics.String()} {
+					for _, secret := range []string{"stale-secret", "client_secret", "provider_token", "invoice-secret"} {
+						if strings.Contains(stream, secret) {
+							t.Fatalf("%s exposed replay secret %q: %s", name, secret, stream)
+						}
+					}
+				}
 				if jsonMode {
 					var safe map[string]any
 					if err := json.Unmarshal(out.Bytes(), &safe); err != nil {
 						t.Fatalf("stdout=%s err=%v", out, err)
 					}
-					for _, forbidden := range []string{"checkout_url", "checkout", "client_secret", "provider_token", "unknown"} {
+					for _, forbidden := range []string{"checkout_url", "checkout", "client_secret", "provider_token", "invoice_url", "unknown"} {
 						if _, ok := safe[forbidden]; ok {
 							t.Fatalf("unsafe replay field %q in %s", forbidden, out)
 						}
-					}
-					if strings.Contains(out.String(), "stale-secret") || strings.Contains(out.String(), "client_secret") || strings.Contains(out.String(), "provider_token") {
-						t.Fatalf("unsafe replay value in %s", out)
 					}
 					if safe["order_number"] != "ORD-1" || !strings.Contains(diagnostics.String(), "Capacity checkout replay:") {
 						t.Fatalf("stdout=%s stderr=%s", out, diagnostics)
 					}
 					return
 				}
-				if out.Len() != 0 || strings.Contains(diagnostics.String(), "checkout submitted") || strings.Contains(diagnostics.String(), "stale-secret") || strings.Contains(diagnostics.String(), "client_secret") {
+				if out.Len() != 0 || strings.Contains(diagnostics.String(), "checkout submitted") || strings.Contains(diagnostics.String(), "Invoice URL") {
 					t.Fatalf("stdout=%s stderr=%s", out, diagnostics)
 				}
-				for _, want := range []string{tt.want, "Order: ORD-1", "Order status: pending", "Invoice: INV-1", "Invoice URL: https://panel.example/billing/invoices/INV-1", "Amount due: $5.0001"} {
+				for _, want := range []string{tt.want, "Order: ORD-1", "Order status: pending", "Invoice: INV-1", "Amount due: $5.0001"} {
 					if !strings.Contains(diagnostics.String(), want) {
 						t.Errorf("stderr missing %q: %s", want, diagnostics)
 					}

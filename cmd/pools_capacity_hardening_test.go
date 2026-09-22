@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"testing"
@@ -162,6 +163,143 @@ func TestPoolRetryKeyStorageAndFailures(t *testing.T) {
 			}
 			if _, err := poolRetrySecret(dir); err == nil {
 				t.Fatal("regenerated missing key for existing cache")
+			}
+		})
+	}
+}
+
+func TestPoolRetryAllowsSharedConfigDirectoryPermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix mode bits do not represent Windows ACLs")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	keyring.MockInitWithError(fmt.Errorf("keychain unavailable"))
+	t.Cleanup(keyring.MockInit)
+	if err := config.EnsureConfigDir(); err != nil {
+		t.Fatal(err)
+	}
+	configPath, err := config.GetConfigPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	configDir := filepath.Dir(configPath)
+	if err := os.Chmod(configDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	secret, err := poolRetrySecret(configDir)
+	if err != nil {
+		t.Fatalf("shared ~/.odo permissions rejected: %v", err)
+	}
+	cache := &poolRetryCache{
+		path:         filepath.Join(configDir, poolRetryCacheDir, "shared-config.json"),
+		requestHash:  "request",
+		secret:       secret,
+		confirmation: "CONFIRM",
+	}
+	quote := &api.ResourcePoolExpectedQuote{Mode: "purchase", UnitPrice: "5", RecurringAmount: "5", AmountDueAfterCredit: "5"}
+	if err := cache.save(quote); err != nil {
+		t.Fatalf("save with shared ~/.odo permissions: %v", err)
+	}
+	if loaded, err := cache.load(); err != nil || loaded == nil {
+		t.Fatalf("load with shared ~/.odo permissions: quote=%+v err=%v", loaded, err)
+	}
+	for path, mode := range map[string]os.FileMode{
+		filepath.Join(configDir, "capacity-retry-key"): 0600,
+		filepath.Dir(cache.path):                       0700,
+		cache.path:                                     0600,
+	} {
+		info, err := os.Stat(path)
+		if err != nil || info.Mode().Perm() != mode {
+			t.Fatalf("permissions for %s: info=%v err=%v", path, info, err)
+		}
+	}
+}
+
+func TestPoolRetrySyncScope(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	if err := config.EnsureConfigDir(); err != nil {
+		t.Fatal(err)
+	}
+	configPath, err := config.GetConfigPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	configDir := filepath.Dir(configPath)
+	cacheDir := filepath.Join(configDir, poolRetryCacheDir)
+	cache := &poolRetryCache{
+		path:         filepath.Join(cacheDir, "sync-scope.json"),
+		requestHash:  "request",
+		secret:       bytes.Repeat([]byte{1}, 32),
+		confirmation: "CONFIRM",
+	}
+	var synced []string
+	oldSync := poolRetrySyncDir
+	poolRetrySyncDir = func(path string) error {
+		synced = append(synced, path)
+		return nil
+	}
+	t.Cleanup(func() { poolRetrySyncDir = oldSync })
+	quote := &api.ResourcePoolExpectedQuote{Mode: "purchase", UnitPrice: "5", RecurringAmount: "5", AmountDueAfterCredit: "5"}
+	if err := cache.save(quote); err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{configDir, cacheDir}; !reflect.DeepEqual(synced, want) {
+		t.Fatalf("first save synced %v, want %v", synced, want)
+	}
+	synced = nil
+	if _, err := cache.load(); err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{cacheDir}; !reflect.DeepEqual(synced, want) {
+		t.Fatalf("load synced %v, want %v", synced, want)
+	}
+}
+
+func TestPoolRetrySyncsHomeOnlyForNewConfigDirectory(t *testing.T) {
+	for _, configExists := range []bool{false, true} {
+		t.Run(fmt.Sprintf("config-exists=%t", configExists), func(t *testing.T) {
+			home := t.TempDir()
+			t.Setenv("HOME", home)
+			t.Setenv("USERPROFILE", home)
+			configPath, err := config.GetConfigPath()
+			if err != nil {
+				t.Fatal(err)
+			}
+			configDir := filepath.Dir(configPath)
+			if configExists {
+				if err := config.EnsureConfigDir(); err != nil {
+					t.Fatal(err)
+				}
+			}
+			keyring.MockInitWithError(fmt.Errorf("keychain unavailable"))
+			t.Cleanup(keyring.MockInit)
+			var synced []string
+			oldSync := poolRetrySyncDir
+			poolRetrySyncDir = func(path string) error {
+				synced = append(synced, path)
+				return nil
+			}
+			t.Cleanup(func() { poolRetrySyncDir = oldSync })
+			if _, err := poolRetrySecret(configDir); err != nil {
+				t.Fatal(err)
+			}
+			want := []string{configDir}
+			if !configExists {
+				want = []string{home, configDir}
+			}
+			if !reflect.DeepEqual(synced, want) {
+				t.Fatalf("synced %v, want %v", synced, want)
+			}
+			synced = nil
+			if _, err := poolRetrySecret(configDir); err != nil {
+				t.Fatal(err)
+			}
+			if len(synced) != 0 {
+				t.Fatalf("existing key synced directories: %v", synced)
 			}
 		})
 	}
