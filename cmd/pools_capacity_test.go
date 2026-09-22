@@ -51,6 +51,55 @@ func poolTestCommand() (*cobra.Command, *bytes.Buffer, *bytes.Buffer) {
 	return cmd, out, diagnostics
 }
 
+func TestPoolCheckoutPinsAuthenticationAcrossIdentityQuoteAndSubmit(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	keyring.MockInit()
+	t.Cleanup(keyring.MockInit)
+	if err := keyring.Set("odo-cli", "access-token", "account-a-token"); err != nil {
+		t.Fatal(err)
+	}
+
+	checkoutCalls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); got != "Bearer account-a-token" {
+			t.Errorf("request %s used changed authentication %q", r.URL.Path, got)
+		}
+		switch r.URL.Path {
+		case "/v1/auth/":
+			if err := keyring.Set("odo-cli", "access-token", "account-b-token"); err != nil {
+				t.Errorf("switch token: %v", err)
+			}
+			fmt.Fprint(w, `{"user_id":123,"email":"a@example.test","is_email_verified":true}`)
+		case "/client/resource-pools/checkout/":
+			checkoutCalls++
+			if checkoutCalls == 1 {
+				fmt.Fprint(w, `{"confirmation":"PURCHASE CAPACITY","plan_id":42,"plan_name":"Capacity","mode":"purchase","existing_pool_id":null,"unit_price":"5.00","billing_cycle":"monthly","amount_due_after_credit":"5.00","recurring_amount":"5.00"}`)
+				return
+			}
+			fmt.Fprint(w, `{"plan_id":42,"plan_name":"Capacity","order_number":"ORD-1","invoice_number":"INV-1","amount_due":"5.00","payment_method":"stripe_checkout","checkout_url":"https://pay.example/checkout"}`)
+		default:
+			t.Errorf("unexpected request: %s", r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	client := &api.Client{BaseURL: server.URL, HTTPClient: server.Client()}
+	cmd, out, _ := poolTestCommand()
+	req := api.ResourcePoolCheckoutRequest{
+		PlanID: 42, BillingCycle: "monthly", PaymentMethod: "stripe_checkout",
+		IdempotencyKey: "pin-authentication",
+	}
+	if err := runPoolCheckout(cmd, client, req, true, false); err != nil {
+		t.Fatal(err)
+	}
+	if checkoutCalls != 2 || out.String() != "https://pay.example/checkout\n" {
+		t.Fatalf("checkout calls=%d output=%q", checkoutCalls, out.String())
+	}
+}
+
 func TestPoolCheckoutWorkflow(t *testing.T) {
 	for _, tt := range []struct {
 		name, method, methodID, key, mode string

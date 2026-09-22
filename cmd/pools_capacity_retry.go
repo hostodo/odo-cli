@@ -196,7 +196,7 @@ func (cache *poolRetryCache) load() (*api.ResourcePoolExpectedQuote, error) {
 		return nil, cache.failure(err)
 	}
 	// Also complete durability if another process just published this record.
-	if err := cache.syncDirs(false); err != nil {
+	if err := cache.syncDirs(true); err != nil {
 		return nil, err
 	}
 	confirmation, err := cache.decryptConfirmation(record.Confirmation)

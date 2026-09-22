@@ -20,6 +20,7 @@ type Client struct {
 	BaseURL    string
 	HTTPClient *http.Client
 	config     *config.Config
+	authToken  string
 }
 
 // ErrNotAuthenticated indicates user needs to login
@@ -53,6 +54,19 @@ func NewClient(cfg *config.Config) (*Client, error) {
 	return client, nil
 }
 
+// PinAuthentication returns a shallow client copy that uses the credential
+// active now for every request in a multi-step operation. This prevents an
+// account switch in another process from splitting one workflow across users.
+func (c *Client) PinAuthentication() (*Client, error) {
+	token, err := auth.GetToken()
+	if err != nil {
+		return nil, ErrNotAuthenticated
+	}
+	pinned := *c
+	pinned.authToken = token
+	return &pinned, nil
+}
+
 // doRequestWithTimeout performs an HTTP request with a custom timeout.
 // It temporarily adjusts the HTTP client timeout for this request.
 func (c *Client) doRequestWithTimeout(method, path string, body interface{}, timeout time.Duration) (*http.Response, error) {
@@ -62,12 +76,17 @@ func (c *Client) doRequestWithTimeout(method, path string, body interface{}, tim
 	return c.doRequest(method, path, body)
 }
 
-// doRequest performs an HTTP request with token from keychain
+// doRequest performs an HTTP request with token from keychain or a pinned workflow credential.
 func (c *Client) doRequest(method, path string, body interface{}) (*http.Response, error) {
-	// Get token from keychain
-	token, err := auth.GetToken()
-	if err != nil {
-		return nil, ErrNotAuthenticated
+	// Multi-step billable workflows can pin the credential once; ordinary
+	// clients retain the historical behavior of reading the current keychain.
+	token := c.authToken
+	if token == "" {
+		var err error
+		token, err = auth.GetToken()
+		if err != nil {
+			return nil, ErrNotAuthenticated
+		}
 	}
 
 	var reqBody io.Reader

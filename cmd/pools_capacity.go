@@ -139,6 +139,11 @@ func runPoolCheckout(cmd *cobra.Command, client *api.Client, req api.ResourcePoo
 	var cache *poolRetryCache
 	var snapshot *api.ResourcePoolExpectedQuote
 	if !req.QuoteOnly {
+		var err error
+		client, err = client.PinAuthentication()
+		if err != nil {
+			return err
+		}
 		explicitKey := strings.TrimSpace(req.IdempotencyKey) != ""
 		if !explicitKey {
 			key, err := uuid.NewRandom()
@@ -147,7 +152,6 @@ func runPoolCheckout(cmd *cobra.Command, client *api.Client, req api.ResourcePoo
 			}
 			req.IdempotencyKey = key.String()
 		}
-		var err error
 		cache, err = newPoolRetryCache(client, req)
 		if err != nil {
 			return err

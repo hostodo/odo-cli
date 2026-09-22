@@ -254,7 +254,7 @@ func TestPoolRetrySyncScope(t *testing.T) {
 	if _, err := cache.load(); err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{cacheDir}; !reflect.DeepEqual(synced, want) {
+	if want := []string{configDir, cacheDir}; !reflect.DeepEqual(synced, want) {
 		t.Fatalf("load synced %v, want %v", synced, want)
 	}
 }
