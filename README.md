@@ -119,6 +119,41 @@ List active CLI sessions.
 odo auth sessions
 ```
 
+### Capacity Commands
+
+```bash
+odo pools list --simple
+odo pools show pool::abc --details
+odo pools options
+odo pools quote --plan-id 42 --billing-cycle annually --promo SAVE
+odo pools purchase --plan-id 42
+odo pools purchase --plan-id 42 --payment-method saved_card --payment-method-id pm::123 --idempotency-key my-purchase-1 --yes
+odo pools update pool::abc --display-name Production --autorenew=true
+odo pools update pool::abc --autorenew=false
+odo pools cancel pool::abc --reason "No longer needed"
+```
+
+A first purchase fetches and displays a fresh quote before asking you to type
+`PURCHASE`. Use `--yes` to explicitly confirm in scripts. The default payment
+method is hosted Stripe checkout; the checkout URL is printed alone on stdout.
+The quote and idempotency key are printed to stderr. Reuse the same
+`--idempotency-key` with the same arguments, API endpoint, and login when retrying.
+Confirmed quote snapshots are saved in `~/.odo/capacity-checkouts/` with owner-only
+permissions before checkout. Cached retries reuse the exact saved quote without
+fetching a new one, even if prices, credits, or Capacity have since changed. An
+explicit key without a local record is treated as first use, with a stderr notice.
+Keep these records when an outcome is unknown; if a key was used on another
+machine, recover its original record before retrying. Corrupt records or changed
+inputs abort checkout. The cache stores no card/provider secrets or credentials.
+Selecting another tier can change existing Capacity; review the quote's mode
+and recurring amount.
+
+Cancellation also cancels the member instances and requires typing `CANCEL` or
+passing `--yes`. All Capacity commands support `--json` to print the raw API
+response as formatted JSON, including fields unknown to the CLI. `--json` does
+not bypass confirmation. List/show retain `--simple`, `--details`, and the default
+interactive table.
+
 ### Instance Commands
 
 All instance commands are under `odo instances` (alias: `odo i`). Flat shortcuts like `odo ssh`, `odo list`, `odo start` etc. also work.

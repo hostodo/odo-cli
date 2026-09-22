@@ -153,7 +153,16 @@ func parseResponse(resp *http.Response, v interface{}) error {
 	if resp.StatusCode >= 400 {
 		var errorResp ErrorResponse
 		if err := json.Unmarshal(body, &errorResp); err == nil {
-			return fmt.Errorf("API error (%d): %s", resp.StatusCode, errorResp.Detail)
+			if strings.TrimSpace(errorResp.Detail) != "" {
+				return fmt.Errorf("API error (%d): %s", resp.StatusCode, errorResp.Detail)
+			}
+			if strings.TrimSpace(errorResp.Message) != "" {
+				return fmt.Errorf("API error (%d): %s", resp.StatusCode, errorResp.Message)
+			}
+		}
+		// Preserve field-validation maps and unrecognized error payloads.
+		if len(bytes.TrimSpace(body)) == 0 {
+			return fmt.Errorf("API error (%d): %s", resp.StatusCode, http.StatusText(resp.StatusCode))
 		}
 		return fmt.Errorf("API error (%d): %s", resp.StatusCode, string(body))
 	}

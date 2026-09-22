@@ -34,6 +34,7 @@ type poolSummary struct {
 	ID             string           `json:"id"`
 	PoolID         string           `json:"pool_id"`
 	Status         string           `json:"status"`
+	PlanID         int              `json:"plan_id"`
 	PlanName       string           `json:"plan_name"`
 	Plan           *poolPlanSummary `json:"plan"`
 	UsedRAMMB      int              `json:"used_ram_mb"`
@@ -46,6 +47,29 @@ type poolSummary struct {
 	MaxIPv4        int              `json:"max_ips"`
 	UsedBandwidth  int              `json:"used_bandwidth_gb"`
 	TotalBandwidth int              `json:"total_bandwidth_gb"`
+	DisplayName    string           `json:"display_name"`
+	Autorenew      *bool            `json:"autorenewal_enabled"`
+}
+
+// Accept both the original flat pool payload and the current nested quotas.
+func (pool *poolSummary) UnmarshalJSON(data []byte) error {
+	type legacyPool poolSummary
+	var payload struct {
+		legacyPool
+		Quota *api.ResourcePoolCapacity `json:"quota"`
+		Usage *api.ResourcePoolCapacity `json:"usage"`
+	}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return err
+	}
+	*pool = poolSummary(payload.legacyPool)
+	if q := payload.Quota; q != nil {
+		pool.TotalRAMMB, pool.TotalDiskGB, pool.MaxInstances, pool.MaxIPv4, pool.TotalBandwidth = q.RAMMB, q.DiskGB, q.Instances, q.IPs, q.BandwidthGB
+	}
+	if u := payload.Usage; u != nil {
+		pool.UsedRAMMB, pool.UsedDiskGB, pool.UsedInstances, pool.UsedIPv4, pool.UsedBandwidth = u.RAMMB, u.DiskGB, u.Instances, u.IPs, u.BandwidthGB
+	}
+	return nil
 }
 
 // poolsListResponse is the paginated response from /client/resource-pools/.
@@ -62,9 +86,13 @@ type poolsTableModel struct {
 var poolsCmd = &cobra.Command{
 	Use:   "pools",
 	Short: "Manage Hostodo capacity subscriptions",
-	Long: `List and inspect Hostodo capacity subscriptions (resource pools).
+	Long: `Purchase and manage Hostodo capacity subscriptions (resource pools).
 
-Output Formats:
+Use options to find plan IDs, quote to preview pricing, and purchase to create
+or change Capacity. Use update for display names and Autorenew, or cancel to
+permanently cancel Capacity and its member instances.
+
+List/show Output Formats:
   - Interactive TUI (default) - Scrollable capacity table
   - JSON (--json)             - JSON format for scripting and automation
   - Simple (--simple)         - Static ASCII table for quick viewing
@@ -90,8 +118,10 @@ var poolsShowCmd = &cobra.Command{
 
 func init() {
 	poolsCmd.PersistentFlags().BoolVar(&poolsJSON, "json", false, "Output as JSON")
-	poolsCmd.PersistentFlags().BoolVar(&poolsSimple, "simple", false, "Output as simple table")
-	poolsCmd.PersistentFlags().BoolVar(&poolsDetails, "details", false, "Show detailed information")
+	for _, cmd := range []*cobra.Command{poolsListCmd, poolsShowCmd} {
+		cmd.Flags().BoolVar(&poolsSimple, "simple", false, "Output as simple table")
+		cmd.Flags().BoolVar(&poolsDetails, "details", false, "Show detailed information")
+	}
 	poolsCmd.AddCommand(poolsListCmd)
 	poolsCmd.AddCommand(poolsShowCmd)
 }
@@ -114,17 +144,9 @@ func runPoolsList() error {
 	if err != nil {
 		return err
 	}
-	resp, err := client.Get("/client/resource-pools/")
+	_, body, err := client.ListResourcePools()
 	if err != nil {
 		return err
-	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-	if resp.StatusCode >= 400 {
-		return fmt.Errorf("API error (%d): %s", resp.StatusCode, string(body))
 	}
 	if poolsJSON {
 		return printPrettyJSON(body)
@@ -142,17 +164,9 @@ func runPoolsShow(poolID string) error {
 	if err != nil {
 		return err
 	}
-	resp, err := client.Get("/client/resource-pools/" + poolID + "/")
+	_, body, err := client.GetResourcePool(poolID)
 	if err != nil {
 		return err
-	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-	if resp.StatusCode >= 400 {
-		return fmt.Errorf("API error (%d): %s", resp.StatusCode, string(body))
 	}
 	if poolsJSON {
 		return printPrettyJSON(body)
@@ -185,12 +199,16 @@ func renderPools(pools []poolSummary, count int) error {
 
 // printPrettyJSON pretty-prints raw JSON from the API without interface{} unmarshalling.
 func printPrettyJSON(body []byte) error {
+	return printPrettyJSONTo(os.Stdout, body)
+}
+
+func printPrettyJSONTo(writer io.Writer, body []byte) error {
 	var out bytes.Buffer
 	if err := json.Indent(&out, body, "", "  "); err != nil {
 		return err
 	}
 	out.WriteByte('\n')
-	_, err := out.WriteTo(os.Stdout)
+	_, err := out.WriteTo(writer)
 	return err
 }
 
@@ -227,6 +245,16 @@ func formatPoolsDetails(pools []poolSummary) string {
 			sb.WriteString("\n")
 		}
 		sb.WriteString(fmt.Sprintf("Capacity: %s\n", poolIdentifier(pool)))
+		if pool.DisplayName != "" {
+			sb.WriteString(fmt.Sprintf("  Name:       %s\n", pool.DisplayName))
+		}
+		if pool.Autorenew != nil {
+			label := "off"
+			if *pool.Autorenew {
+				label = "on"
+			}
+			sb.WriteString(fmt.Sprintf("  Autorenew:  %s\n", label))
+		}
 		sb.WriteString(fmt.Sprintf("  Status:     %s\n", valueOrDash(pool.Status)))
 		sb.WriteString(fmt.Sprintf("  Plan:       %s\n", poolPlanName(pool)))
 		sb.WriteString(fmt.Sprintf("  RAM:        %d / %d MB\n", pool.UsedRAMMB, pool.TotalRAMMB))
@@ -309,13 +337,16 @@ func poolIdentifier(pool poolSummary) string {
 	return valueOrDash(pool.ID)
 }
 
-// poolPlanName returns the plan name from either flat or nested API shapes.
+// poolPlanName prefers legacy plan names, falling back to the current plan ID.
 func poolPlanName(pool poolSummary) string {
 	if pool.PlanName != "" {
 		return pool.PlanName
 	}
 	if pool.Plan != nil && pool.Plan.Name != "" {
 		return pool.Plan.Name
+	}
+	if pool.PlanID > 0 {
+		return fmt.Sprintf("Plan #%d", pool.PlanID)
 	}
 	return "-"
 }
