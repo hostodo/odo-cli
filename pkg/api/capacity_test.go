@@ -139,7 +139,9 @@ func TestCheckoutResourcePoolPurchaseContract(t *testing.T) {
 
 	req := ResourcePoolCheckoutRequest{
 		PlanID: 41, BillingCycle: "monthly", PaymentMethod: "saved_card",
-		PaymentMethodID: "pm::123", IdempotencyKey: "idem-1", QuoteOnly: false,
+		Confirmation: "PURCHASE CAPACITY", PaymentMethodID: "pm::123", IdempotencyKey: "idem-1", QuoteOnly: false,
+		PaymentConfirmation:  "CHARGE SAVED CARD pm::123 ENDING 4242 FOR 5.00",
+		ApprovedChargeAmount: "5.00",
 		ExpectedQuote: &ResourcePoolExpectedQuote{
 			Mode: "purchase", UnitPrice: "20.0000000000000001",
 			RecurringAmount: "20.00", AmountDueAfterCredit: "5.0001",

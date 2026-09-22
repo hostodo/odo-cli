@@ -100,14 +100,17 @@ type ResourcePoolOptions struct {
 
 // ResourcePoolCheckoutRequest is used for both a fresh quote and checkout.
 type ResourcePoolCheckoutRequest struct {
-	PlanID          int                        `json:"plan_id"`
-	BillingCycle    string                     `json:"billing_cycle"`
-	PaymentMethod   string                     `json:"payment_method,omitempty"`
-	PaymentMethodID string                     `json:"payment_method_id,omitempty"`
-	Promocode       string                     `json:"promocode,omitempty"`
-	IdempotencyKey  string                     `json:"idempotency_key,omitempty"`
-	QuoteOnly       bool                       `json:"quote_only"`
-	ExpectedQuote   *ResourcePoolExpectedQuote `json:"expected_quote,omitempty"`
+	Confirmation         string                     `json:"confirmation,omitempty"`
+	PlanID               int                        `json:"plan_id"`
+	BillingCycle         string                     `json:"billing_cycle"`
+	PaymentMethod        string                     `json:"payment_method,omitempty"`
+	PaymentMethodID      string                     `json:"payment_method_id,omitempty"`
+	Promocode            string                     `json:"promocode,omitempty"`
+	IdempotencyKey       string                     `json:"idempotency_key,omitempty"`
+	QuoteOnly            bool                       `json:"quote_only"`
+	PaymentConfirmation  string                     `json:"payment_confirmation,omitempty"`
+	ApprovedChargeAmount json.Number                `json:"approved_charge_amount,omitempty"`
+	ExpectedQuote        *ResourcePoolExpectedQuote `json:"expected_quote,omitempty"`
 }
 
 // ResourcePoolExpectedQuote binds checkout to the fresh quote the customer confirmed.
@@ -121,6 +124,14 @@ type ResourcePoolExpectedQuote struct {
 
 // ResourcePoolCheckoutResponse represents either a quote or completed checkout.
 type ResourcePoolCheckoutResponse struct {
+	Confirmation         string               `json:"confirmation"`
+	PaymentConfirmation  string               `json:"payment_confirmation"`
+	IdempotentReplay     bool                 `json:"idempotent_replay"`
+	Phase                string               `json:"phase"`
+	Status               string               `json:"status"`
+	OrderStatus          string               `json:"order_status"`
+	InvoiceStatus        string               `json:"invoice_status"`
+	InvoiceURL           string               `json:"invoice_url"`
 	PlanID               int                  `json:"plan_id"`
 	PlanName             string               `json:"plan_name"`
 	BillingCycle         string               `json:"billing_cycle"`
@@ -168,6 +179,9 @@ type ResourcePoolCancelResponse struct {
 // parseResponsePreservingRaw delegates status/error handling and decoding to
 // parseResponse while retaining the exact successful server payload for --json.
 func parseResponsePreservingRaw(resp *http.Response, value interface{}) ([]byte, error) {
+	if resp.StatusCode >= 400 {
+		return nil, parseResponse(resp, value)
+	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		resp.Body.Close()

@@ -29,12 +29,12 @@ func TestBuildPoolCheckoutRequestRequiresPaymentMethodIDForSavedCard(t *testing.
 	}
 }
 
-func TestBuildPoolCheckoutRequestQuoteOmitsPaymentFields(t *testing.T) {
-	got, err := buildPoolCheckoutRequest(42, "annually", "stripe_checkout", "pm::ignored", "SAVE", "idem-ignored", true)
+func TestBuildPoolCheckoutRequestQuoteIncludesPaymentFields(t *testing.T) {
+	got, err := buildPoolCheckoutRequest(42, "annually", "saved_card", "pm::selected", "SAVE", "idem-ignored", true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := api.ResourcePoolCheckoutRequest{PlanID: 42, BillingCycle: "annually", Promocode: "SAVE", QuoteOnly: true}
+	want := api.ResourcePoolCheckoutRequest{PlanID: 42, BillingCycle: "annually", Promocode: "SAVE", QuoteOnly: true, PaymentMethod: "saved_card", PaymentMethodID: "pm::selected"}
 	if got != want {
 		t.Fatalf("request = %+v, want %+v", got, want)
 	}
@@ -114,20 +114,18 @@ func TestPoolsHelpListsCapacityCRUDCommands(t *testing.T) {
 
 func TestPoolsOutputFlagScope(t *testing.T) {
 	for _, command := range poolsCmd.Commands() {
-		t.Run(command.Name(), func(t *testing.T) {
-			inherited := command.InheritedFlags()
-			if inherited.Lookup("json") == nil {
-				t.Fatal("--json must be available on every pools command")
+		inherited := command.InheritedFlags()
+		if inherited.Lookup("json") == nil {
+			t.Fatal("--json must be available on every pools command")
+		}
+		for _, name := range []string{"simple", "details"} {
+			if inherited.Lookup(name) != nil {
+				t.Errorf("--%s must not be inherited", name)
 			}
-			for _, name := range []string{"simple", "details"} {
-				if inherited.Lookup(name) != nil {
-					t.Errorf("--%s must not be inherited", name)
-				}
-				want := command.Name() == "list" || command.Name() == "show"
-				if got := command.LocalFlags().Lookup(name) != nil; got != want {
-					t.Errorf("local --%s present = %t, want %t", name, got, want)
-				}
+			want := command.Name() == "list" || command.Name() == "show"
+			if got := command.LocalFlags().Lookup(name) != nil; got != want {
+				t.Errorf("%s local --%s present=%t want=%t", command.Name(), name, got, want)
 			}
-		})
+		}
 	}
 }

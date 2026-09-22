@@ -19,13 +19,25 @@ import (
 
 func poolTestClient(t *testing.T, handler http.HandlerFunc) *api.Client {
 	t.Helper()
-	t.Setenv("HOME", t.TempDir())
+	testHome := t.TempDir()
+	t.Setenv("HOME", testHome)
+	t.Setenv("USERPROFILE", testHome)
 	keyring.MockInit()
 	if err := keyring.Set("odo-cli", "access-token", "capacity-test-token"); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(keyring.MockInit)
-	server := httptest.NewServer(handler)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/auth/" {
+			id := 123
+			if r.Header.Get("Authorization") == "Bearer different-login" {
+				id = 456
+			}
+			fmt.Fprintf(w, `{"user_id":%d,"email":"capacity@example.test","is_email_verified":true}`, id)
+			return
+		}
+		handler(w, r)
+	}))
 	t.Cleanup(server.Close)
 	return &api.Client{BaseURL: server.URL, HTTPClient: server.Client()}
 }
@@ -47,6 +59,10 @@ func TestPoolCheckoutWorkflow(t *testing.T) {
 		quoteBody, wantError              string
 	}{
 		{name: "hosted checkout", method: "stripe_checkout", key: "retry-123", yes: true},
+		{name: "PayPal confirmation", method: "paypal", yes: true},
+		{name: "Alipay confirmation", method: "alipay", yes: true},
+		{name: "crypto confirmation", method: "crypto", yes: true},
+		{name: "credit confirmation", method: "credit", yes: true},
 		{name: "saved card", method: "saved_card", methodID: "pm::123", yes: true},
 		{name: "raw purchase JSON", method: "stripe_checkout", yes: true, jsonMode: true},
 		{name: "saved card upgrade JSON", method: "saved_card", methodID: "pm::123", key: "retry-card-upgrade", yes: true, jsonMode: true},
@@ -60,7 +76,7 @@ func TestPoolCheckoutWorkflow(t *testing.T) {
 		{name: "JSON is not consent", method: "saved_card", methodID: "pm::123", jsonMode: true, wantError: "--yes"},
 		{name: "quote fails", method: "stripe_checkout", yes: true, quoteStatus: 400, quoteBody: `{"detail":"tier unavailable"}`, wantError: "tier unavailable"},
 		{name: "missing price", method: "stripe_checkout", yes: true, quoteBody: `{"plan_id":42}`, wantError: "missing amount_due_after_credit"},
-		{name: "zero due", method: "saved_card", methodID: "pm::123", yes: true, quoteBody: `{"mode":"upgrade","existing_pool_id":"pool::zero","unit_price":"7.5000","amount_due_after_credit":"0.00","recurring_amount":"30.00"}`},
+		{name: "zero due", method: "saved_card", methodID: "pm::123", yes: true, quoteBody: `{"confirmation":"PURCHASE CAPACITY","mode":"upgrade","existing_pool_id":"pool::zero","unit_price":"7.5000","amount_due_after_credit":"0.00","recurring_amount":"30.00"}`},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			cmd, out, diagnostics := poolTestCommand()
@@ -70,7 +86,15 @@ func TestPoolCheckoutWorkflow(t *testing.T) {
 				if mode == "" {
 					mode, poolID = "upgrade", `"pool::existing"`
 				}
-				quoteBody = fmt.Sprintf(`{"plan_id":42,"plan_name":"Capacity 16G","mode":%q,"existing_pool_id":%s,"unit_price":"7.5000000000000001","billing_cycle":"annually","amount_due_after_credit":"5.0001","recurring_amount":"30.00","unknown":9007199254740993}`, mode, poolID)
+				quoteBody = fmt.Sprintf(`{"confirmation":"PURCHASE CAPACITY","plan_id":42,"plan_name":"Capacity 16G","mode":%q,"existing_pool_id":%s,"unit_price":"7.5000000000000001","billing_cycle":"annually","amount_due_after_credit":"5.0001","recurring_amount":"30.00","unknown":9007199254740993}`, mode, poolID)
+			}
+			if tt.method == "saved_card" && tt.quoteStatus == 0 {
+				quoteBody = strings.ReplaceAll(quoteBody, "5.0001", "5.00")
+				amount := "5.00"
+				if tt.name == "zero due" {
+					amount = "0.00"
+				}
+				quoteBody = strings.TrimSuffix(quoteBody, "}") + fmt.Sprintf(`,"payment_confirmation":"CHARGE SAVED CARD %s ENDING 4242 FOR %s"}`, tt.methodID, amount)
 			}
 			checkoutBody := `{"plan_id":42,"plan_name":"Capacity 16G","order_number":"ORD-1","invoice_number":"INV-1","amount_due":"5.0001","payment_method":"` + tt.method + `","unknown":9007199254740993`
 			if tt.method == "stripe_checkout" {
@@ -92,10 +116,17 @@ func TestPoolCheckoutWorkflow(t *testing.T) {
 					if string(body["quote_only"]) != "true" || string(body["plan_id"]) != "42" || string(body["billing_cycle"]) != `"annually"` || string(body["promocode"]) != `"SAVE"` {
 						t.Errorf("unexpected quote: %s", body)
 					}
-					for _, field := range []string{"payment_method", "payment_method_id", "idempotency_key", "expected_quote"} {
+					for _, field := range []string{"idempotency_key", "expected_quote", "confirmation", "payment_confirmation", "approved_charge_amount"} {
 						if _, ok := body[field]; ok {
 							t.Errorf("quote contains %s", field)
 						}
+					}
+					if tt.method == "saved_card" {
+						if string(body["payment_method"]) != `"saved_card"` || string(body["payment_method_id"]) != fmt.Sprintf("%q", tt.methodID) {
+							t.Errorf("saved-card quote missing selected card: %s", body)
+						}
+					} else if string(body["payment_method"]) != fmt.Sprintf("%q", reqPaymentMethod(tt.method)) || body["payment_method_id"] != nil {
+						t.Errorf("quote contains unexpected payment routing: %s", body)
 					}
 					if tt.quoteStatus != 0 {
 						w.WriteHeader(tt.quoteStatus)
@@ -109,6 +140,21 @@ func TestPoolCheckoutWorkflow(t *testing.T) {
 				encoded, _ := json.Marshal(body)
 				if err := json.Unmarshal(encoded, &purchased); err != nil {
 					t.Error(err)
+				}
+				if purchased.Confirmation != "PURCHASE CAPACITY" {
+					t.Errorf("missing generic confirmation: %+v", purchased)
+				}
+				if tt.method == "saved_card" {
+					var quoted struct {
+						PaymentConfirmation string      `json:"payment_confirmation"`
+						Amount              json.Number `json:"amount_due_after_credit"`
+					}
+					if err := json.Unmarshal([]byte(quoteBody), &quoted); err != nil {
+						t.Error(err)
+					}
+					if string(body["payment_confirmation"]) != fmt.Sprintf("%q", quoted.PaymentConfirmation) || string(body["approved_charge_amount"]) != quoted.Amount.String() {
+						t.Errorf("incorrect backend approval fields: %s", encoded)
+					}
 				}
 				var snapshot map[string]json.RawMessage
 				if err := json.Unmarshal(body["expected_quote"], &snapshot); err != nil {
@@ -162,7 +208,13 @@ func TestPoolCheckoutWorkflow(t *testing.T) {
 				} else if _, err := uuid.Parse(purchased.IdempotencyKey); err != nil {
 					t.Fatalf("generated idempotency key = %q", purchased.IdempotencyKey)
 				}
-				if tt.quoteBody == "" && !strings.Contains(diagnostics.String(), "$5.0001") {
+				if tt.method == "saved_card" {
+					want, err := poolCardConfirmation(tt.methodID, expectedQuote.AmountDueAfterCredit, "4242")
+					if err != nil || purchased.PaymentConfirmation != want || purchased.ApprovedChargeAmount != expectedQuote.AmountDueAfterCredit || !strings.Contains(diagnostics.String(), want) {
+						t.Fatalf("missing exact saved-card approval: %+v err=%v stderr=%s", purchased, err, diagnostics)
+					}
+				}
+				if tt.method != "saved_card" && tt.quoteBody == "" && !strings.Contains(diagnostics.String(), "$5.0001") {
 					t.Fatalf("fresh amount lost precision: %q", diagnostics.String())
 				}
 			}
@@ -202,7 +254,7 @@ func TestPoolCheckoutRetryPreservesIdempotencyKey(t *testing.T) {
 		}
 		if req.QuoteOnly {
 			quotes++
-			fmt.Fprint(w, `{"mode":"upgrade","existing_pool_id":"pool::existing","unit_price":"7.50","recurring_amount":"30.00","amount_due_after_credit":"5.0001"}`)
+			fmt.Fprint(w, `{"confirmation":"PURCHASE CAPACITY","mode":"upgrade","existing_pool_id":"pool::existing","unit_price":"7.50","recurring_amount":"30.00","amount_due_after_credit":"5.00","payment_confirmation":"CHARGE SAVED CARD pm::123 ENDING 4242 FOR 5.00"}`)
 			return
 		}
 		purchases = append(purchases, req)
@@ -211,7 +263,7 @@ func TestPoolCheckoutRetryPreservesIdempotencyKey(t *testing.T) {
 			fmt.Fprint(w, `{"detail":"checkout unavailable"}`)
 			return
 		}
-		fmt.Fprint(w, `{"order_number":"ORD-1","invoice_number":"INV-1","payment_method":"saved_card","amount_due":"5.0001"}`)
+		fmt.Fprint(w, `{"order_number":"ORD-1","invoice_number":"INV-1","payment_method":"saved_card","amount_due":"5.00"}`)
 	})
 	req, err := buildPoolCheckoutRequest(42, "monthly", "saved_card", "pm::123", "", "", false)
 	if err != nil {
@@ -368,4 +420,11 @@ func TestPoolSummaryCompatibility(t *testing.T) {
 			}
 		})
 	}
+}
+
+func reqPaymentMethod(method string) string {
+	if method == "" {
+		return "stripe_checkout"
+	}
+	return method
 }

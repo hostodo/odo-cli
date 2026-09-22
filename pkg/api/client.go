@@ -12,6 +12,7 @@ import (
 
 	"github.com/hostodo/odo-cli/v2/pkg/auth"
 	"github.com/hostodo/odo-cli/v2/pkg/config"
+	"github.com/hostodo/odo-cli/v2/pkg/terminaltext"
 )
 
 // Client represents the API client
@@ -105,7 +106,7 @@ func (c *Client) doRequest(method, path string, body interface{}) (*http.Respons
 	// Check for invalid/expired/revoked token (401 Unauthorized)
 	if resp.StatusCode == 401 {
 		// Try to parse error detail for distinct revoked vs expired messages
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxAPIErrorBody))
 		resp.Body.Close()
 		var errResp struct {
 			Detail string `json:"detail"`
@@ -141,11 +142,17 @@ func (c *Client) Delete(path string) (*http.Response, error) {
 	return c.doRequest("DELETE", path, nil)
 }
 
-// parseResponse reads and unmarshals the response body
+const maxAPIErrorBody = 16 * 1024
+
+// parseResponse reads and unmarshals the response body.
 func parseResponse(resp *http.Response, v interface{}) error {
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	var reader io.Reader = resp.Body
+	if resp.StatusCode >= 400 {
+		reader = io.LimitReader(reader, maxAPIErrorBody)
+	}
+	body, err := io.ReadAll(reader)
 	if err != nil {
 		return fmt.Errorf("failed to read response body: %w", err)
 	}
@@ -154,17 +161,17 @@ func parseResponse(resp *http.Response, v interface{}) error {
 		var errorResp ErrorResponse
 		if err := json.Unmarshal(body, &errorResp); err == nil {
 			if strings.TrimSpace(errorResp.Detail) != "" {
-				return fmt.Errorf("API error (%d): %s", resp.StatusCode, errorResp.Detail)
+				return fmt.Errorf("API error (%d): %s", resp.StatusCode, terminaltext.Clean(errorResp.Detail))
 			}
 			if strings.TrimSpace(errorResp.Message) != "" {
-				return fmt.Errorf("API error (%d): %s", resp.StatusCode, errorResp.Message)
+				return fmt.Errorf("API error (%d): %s", resp.StatusCode, terminaltext.Clean(errorResp.Message))
 			}
 		}
 		// Preserve field-validation maps and unrecognized error payloads.
 		if len(bytes.TrimSpace(body)) == 0 {
 			return fmt.Errorf("API error (%d): %s", resp.StatusCode, http.StatusText(resp.StatusCode))
 		}
-		return fmt.Errorf("API error (%d): %s", resp.StatusCode, string(body))
+		return fmt.Errorf("API error (%d): %s", resp.StatusCode, terminaltext.Clean(string(body)))
 	}
 
 	if v != nil {

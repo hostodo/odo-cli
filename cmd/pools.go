@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -14,6 +13,7 @@ import (
 	"github.com/hostodo/odo-cli/v2/pkg/api"
 	"github.com/hostodo/odo-cli/v2/pkg/auth"
 	"github.com/hostodo/odo-cli/v2/pkg/config"
+	"github.com/hostodo/odo-cli/v2/pkg/terminaltext"
 	"github.com/hostodo/odo-cli/v2/pkg/ui"
 	"github.com/spf13/cobra"
 )
@@ -118,7 +118,9 @@ var poolsShowCmd = &cobra.Command{
 
 func init() {
 	poolsCmd.PersistentFlags().BoolVar(&poolsJSON, "json", false, "Output as JSON")
-	for _, cmd := range []*cobra.Command{poolsListCmd, poolsShowCmd} {
+	// Parent-local flags let Cobra recognize legacy flags before the subcommand;
+	// list/show also accept them after it. They are not inherited by mutations.
+	for _, cmd := range []*cobra.Command{poolsCmd, poolsListCmd, poolsShowCmd} {
 		cmd.Flags().BoolVar(&poolsSimple, "simple", false, "Output as simple table")
 		cmd.Flags().BoolVar(&poolsDetails, "details", false, "Show detailed information")
 	}
@@ -139,7 +141,8 @@ func poolsClient() (*api.Client, error) {
 }
 
 // runPoolsList fetches and renders all capacity subscriptions for the user.
-func runPoolsList() error {
+func runPoolsList() (returnErr error) {
+	defer func() { returnErr = poolHumanError(returnErr) }()
 	client, err := poolsClient()
 	if err != nil {
 		return err
@@ -159,7 +162,8 @@ func runPoolsList() error {
 }
 
 // runPoolsShow fetches and renders a single capacity subscription by pool_id.
-func runPoolsShow(poolID string) error {
+func runPoolsShow(poolID string) (returnErr error) {
+	defer func() { returnErr = poolHumanError(returnErr) }()
 	client, err := poolsClient()
 	if err != nil {
 		return err
@@ -197,18 +201,13 @@ func renderPools(pools []poolSummary, count int) error {
 	return runPoolsTUI(pools)
 }
 
-// printPrettyJSON pretty-prints raw JSON from the API without interface{} unmarshalling.
+// printPrettyJSON preserves the successful Capacity payload byte for byte.
 func printPrettyJSON(body []byte) error {
 	return printPrettyJSONTo(os.Stdout, body)
 }
 
 func printPrettyJSONTo(writer io.Writer, body []byte) error {
-	var out bytes.Buffer
-	if err := json.Indent(&out, body, "", "  "); err != nil {
-		return err
-	}
-	out.WriteByte('\n')
-	_, err := out.WriteTo(writer)
+	_, err := writer.Write(body)
 	return err
 }
 
@@ -246,7 +245,7 @@ func formatPoolsDetails(pools []poolSummary) string {
 		}
 		sb.WriteString(fmt.Sprintf("Capacity: %s\n", poolIdentifier(pool)))
 		if pool.DisplayName != "" {
-			sb.WriteString(fmt.Sprintf("  Name:       %s\n", pool.DisplayName))
+			sb.WriteString(fmt.Sprintf("  Name:       %s\n", terminaltext.Clean(pool.DisplayName)))
 		}
 		if pool.Autorenew != nil {
 			label := "off"
@@ -332,7 +331,7 @@ func (m poolsTableModel) View() string {
 // poolIdentifier chooses the stable public pool identifier for display.
 func poolIdentifier(pool poolSummary) string {
 	if pool.PoolID != "" {
-		return pool.PoolID
+		return terminaltext.Clean(pool.PoolID)
 	}
 	return valueOrDash(pool.ID)
 }
@@ -340,10 +339,10 @@ func poolIdentifier(pool poolSummary) string {
 // poolPlanName prefers legacy plan names, falling back to the current plan ID.
 func poolPlanName(pool poolSummary) string {
 	if pool.PlanName != "" {
-		return pool.PlanName
+		return terminaltext.Clean(pool.PlanName)
 	}
 	if pool.Plan != nil && pool.Plan.Name != "" {
-		return pool.Plan.Name
+		return terminaltext.Clean(pool.Plan.Name)
 	}
 	if pool.PlanID > 0 {
 		return fmt.Sprintf("Plan #%d", pool.PlanID)
@@ -356,11 +355,12 @@ func valueOrDash(value string) string {
 	if value == "" {
 		return "-"
 	}
-	return value
+	return terminaltext.Clean(value)
 }
 
 // truncatePool shortens values to fit pool table columns.
 func truncatePool(value string, width int) string {
+	value = terminaltext.Clean(value)
 	if len(value) <= width {
 		return value
 	}

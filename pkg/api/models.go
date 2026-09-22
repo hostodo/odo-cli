@@ -19,10 +19,12 @@ type LoginResponse struct {
 
 // User represents the authenticated user
 type User struct {
-	ID        int    `json:"id"`
-	Email     string `json:"email"`
-	FirstName string `json:"first_name"`
-	LastName  string `json:"last_name"`
+	ID              int    `json:"id"`
+	UserID          int    `json:"user_id"`
+	Email           string `json:"email"`
+	IsEmailVerified bool   `json:"is_email_verified"`
+	FirstName       string `json:"first_name"`
+	LastName        string `json:"last_name"`
 }
 
 // Plan represents a VPS plan

@@ -8,7 +8,9 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/hostodo/odo-cli/v2/pkg/api"
@@ -16,14 +18,14 @@ import (
 )
 
 func TestPoolCheckoutRetryQuoteDrift(t *testing.T) {
-	for _, drift := range []string{"price", "credit", "mode"} {
+	for _, drift := range []string{"price", "credit", "mode", "card ending", "confirmation", "token rotation"} {
 		for _, jsonMode := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/json=%t", drift, jsonMode), func(t *testing.T) {
 				cmd, out, diagnostics := poolTestCommand()
 				quotes, checkouts := 0, 0
 				var firstBody []byte
 				var cache *poolRetryCache
-				quote := `{"mode":"purchase","existing_pool_id":null,"unit_price":"7.5000000000000001","recurring_amount":"30.0000","amount_due_after_credit":"5.0001","client_secret":"provider-secret","checkout_url":"https://secret.example/checkout","card_number":"card-secret"}`
+				quote := `{"confirmation":"PURCHASE CAPACITY pm::private provider-secret","mode":"purchase","existing_pool_id":null,"unit_price":"7.5000000000000001","recurring_amount":"30.0000","amount_due_after_credit":"5.00","client_secret":"provider-secret","checkout_url":"https://secret.example/checkout","card_number":"card-secret","payment_confirmation":"CHARGE SAVED CARD pm::private ENDING 4242 FOR 5.00"}`
 				client := poolTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 					var body json.RawMessage
 					if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -41,6 +43,9 @@ func TestPoolCheckoutRetryQuoteDrift(t *testing.T) {
 						return
 					}
 					checkouts++
+					if req.PaymentConfirmation != "CHARGE SAVED CARD pm::private ENDING 4242 FOR 5.00" || req.ApprovedChargeAmount != "5.00" {
+						t.Errorf("checkout missing original approval: %+v", req)
+					}
 					// The exact snapshot must already be durable when checkout starts.
 					saved, err := cache.load()
 					if err != nil || !reflect.DeepEqual(saved, req.ExpectedQuote) {
@@ -58,7 +63,7 @@ func TestPoolCheckoutRetryQuoteDrift(t *testing.T) {
 						fmt.Fprint(w, `{"detail":"idempotency payload mismatch"}`)
 						return
 					}
-					fmt.Fprint(w, `{"checkout_url":"https://pay.example/replay","unknown":9007199254740993}`)
+					fmt.Fprint(w, `{"idempotent_replay":true,"phase":"completed","order_number":"ORD-1","invoice_number":"INV-1","invoice_status":"unpaid","invoice_url":"https://panel.example/invoices/INV-1","checkout_url":"https://pay.example/replay","checkout":{"client_secret":"secret"},"unknown":9007199254740993}`)
 				})
 				req, err := buildPoolCheckoutRequest(42, "annually", "saved_card", "pm::private", "SAVE", "explicit/../retry-key", false)
 				if err != nil {
@@ -85,7 +90,7 @@ func TestPoolCheckoutRetryQuoteDrift(t *testing.T) {
 				}
 				for path, mode := range map[string]os.FileMode{cache.path: 0600, filepath.Dir(cache.path): 0700} {
 					info, err := os.Stat(path)
-					if err != nil || info.Mode().Perm() != mode {
+					if err != nil || (runtime.GOOS != "windows" && info.Mode().Perm() != mode) {
 						t.Fatalf("permissions for %s: info=%v err=%v", path, info, err)
 					}
 				}
@@ -94,14 +99,25 @@ func TestPoolCheckoutRetryQuoteDrift(t *testing.T) {
 					quote = strings.ReplaceAll(quote, "7.5000000000000001", "9.0000000000000001")
 					quote = strings.ReplaceAll(quote, "30.0000", "36.0000")
 				case "credit":
-					quote = strings.ReplaceAll(quote, "5.0001", "0.0000")
+					quote = strings.ReplaceAll(quote, "5.00", "0.0000")
 				case "mode":
 					quote = strings.ReplaceAll(quote, `"purchase"`, `"upgrade"`)
 					quote = strings.ReplaceAll(quote, `null`, `"pool::created"`)
+				case "confirmation":
+					quote = strings.ReplaceAll(quote, "PURCHASE CAPACITY", "NEW SERVER PHRASE")
+				case "token rotation":
+					if err := keyring.Set("odo-cli", "access-token", "rotated-token-same-user"); err != nil {
+						t.Fatal(err)
+					}
+				case "card ending":
+					quote = strings.ReplaceAll(quote, "ENDING 4242", "ENDING 9999")
 				}
 				// New command/client instances prove reuse comes from disk.
 				cmd, out, diagnostics = poolTestCommand()
 				retryClient := &api.Client{BaseURL: client.BaseURL, HTTPClient: client.HTTPClient}
+				if err := runPoolCheckout(cmd, retryClient, req, false, jsonMode); err == nil || !strings.Contains(err.Error(), "--yes") || quotes != 1 || checkouts != 1 {
+					t.Fatalf("retry bypassed explicit confirmation: err=%v quotes=%d checkouts=%d", err, quotes, checkouts)
+				}
 				if err := runPoolCheckout(cmd, retryClient, req, true, jsonMode); err != nil {
 					t.Fatal(err)
 				}
@@ -109,11 +125,10 @@ func TestPoolCheckoutRetryQuoteDrift(t *testing.T) {
 					t.Fatalf("quotes=%d checkouts=%d stderr=%s", quotes, checkouts, diagnostics)
 				}
 				if jsonMode {
-					var compact bytes.Buffer
-					if err := json.Compact(&compact, out.Bytes()); err != nil || compact.String() != `{"checkout_url":"https://pay.example/replay","unknown":9007199254740993}` {
-						t.Fatalf("stdout=%q err=%v", out.String(), err)
+					if strings.Contains(out.String(), "pay.example") || strings.Contains(out.String(), "client_secret") || !strings.Contains(out.String(), `"idempotent_replay": true`) {
+						t.Fatalf("unsafe replay stdout=%q", out.String())
 					}
-				} else if out.String() != "https://pay.example/replay\n" {
+				} else if out.Len() != 0 || strings.Contains(diagnostics.String(), "pay.example") {
 					t.Fatalf("stdout=%q", out.String())
 				}
 				current, err := os.ReadFile(cache.path)
@@ -126,8 +141,11 @@ func TestPoolCheckoutRetryQuoteDrift(t *testing.T) {
 }
 
 func TestPoolCheckoutRetryRejectsInvalidCache(t *testing.T) {
-	for _, problem := range []string{"truncated", "trailing", "missing quote", "missing amount", "missing pool field", "changed price", "version", "plan", "cycle", "promo", "payment method", "saved card", "key", "endpoint", "login", "permissions", "symlink"} {
+	for _, problem := range []string{"truncated", "trailing", "missing quote", "missing amount", "missing pool field", "changed price", "forged HMAC", "version", "plan", "cycle", "promo", "payment method", "saved card", "key", "endpoint", "login", "permissions", "symlink"} {
 		t.Run(problem, func(t *testing.T) {
+			if runtime.GOOS == "windows" && problem == "permissions" {
+				t.Skip("Unix mode bits do not represent Windows ACLs")
+			}
 			calls := 0
 			client := poolTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 				calls++
@@ -142,6 +160,7 @@ func TestPoolCheckoutRetryRejectsInvalidCache(t *testing.T) {
 				t.Fatal(err)
 			}
 			quote := &api.ResourcePoolExpectedQuote{Mode: "purchase", UnitPrice: "7.5000", RecurringAmount: "30.00", AmountDueAfterCredit: "5.0001"}
+			cache.confirmation = "PURCHASE CAPACITY"
 			if err := cache.save(quote); err != nil {
 				t.Fatal(err)
 			}
@@ -154,6 +173,19 @@ func TestPoolCheckoutRetryRejectsInvalidCache(t *testing.T) {
 				t.Fatal(err)
 			}
 			switch problem {
+			case "forged HMAC":
+				var forged poolRetryRecord
+				if err := json.Unmarshal(data, &forged); err != nil {
+					t.Fatal(err)
+				}
+				forged.Quote.UnitPrice = "999.00"
+				forged.MAC = ""
+				unsigned, _ := json.Marshal(forged)
+				forged.MAC = poolRetryHash(unsigned) // An attacker can recompute SHA-256, but not the HMAC.
+				data, err = json.Marshal(forged)
+				if err != nil {
+					t.Fatal(err)
+				}
 			case "truncated":
 				data = data[:len(data)/2]
 			case "trailing":
@@ -169,7 +201,7 @@ func TestPoolCheckoutRetryRejectsInvalidCache(t *testing.T) {
 				case "changed price":
 					record["expected_quote"] = bytes.Replace(record["expected_quote"], []byte(`"unit_price":7.5000`), []byte(`"unit_price":99`), 1)
 				case "version":
-					record["version"] = json.RawMessage(`2`)
+					record["version"] = json.RawMessage(`1`)
 				}
 				data, err = json.Marshal(record)
 				if err != nil {
@@ -193,7 +225,7 @@ func TestPoolCheckoutRetryRejectsInvalidCache(t *testing.T) {
 				}
 				cache.path = other.path // A record copied under the wrong key.
 			case "endpoint":
-				client.BaseURL += "/other"
+				client.BaseURL = strings.Replace(client.BaseURL, "127.0.0.1", "localhost", 1)
 			case "login":
 				if err := keyring.Set("odo-cli", "access-token", "different-login"); err != nil {
 					t.Fatal(err)
@@ -212,6 +244,9 @@ func TestPoolCheckoutRetryRejectsInvalidCache(t *testing.T) {
 					t.Fatal(err)
 				}
 				if err := os.Symlink(cache.path+".original", cache.path); err != nil {
+					if runtime.GOOS == "windows" {
+						t.Skipf("symlink creation unavailable: %v", err)
+					}
 					t.Fatal(err)
 				}
 			}
@@ -243,6 +278,7 @@ func TestPoolCheckoutRetrySaveFailureAborts(t *testing.T) {
 				}
 				if reason == "concurrent first use" {
 					other := &api.ResourcePoolExpectedQuote{Mode: "purchase", UnitPrice: "99.00", RecurringAmount: "99.00", AmountDueAfterCredit: "99.00"}
+					cache.confirmation = "PURCHASE CAPACITY"
 					if err := cache.save(other); err != nil {
 						t.Error(err)
 					}
@@ -254,7 +290,7 @@ func TestPoolCheckoutRetrySaveFailureAborts(t *testing.T) {
 						t.Error(err)
 					}
 				}
-				fmt.Fprint(w, `{"mode":"purchase","existing_pool_id":null,"unit_price":"7.50","recurring_amount":"30.00","amount_due_after_credit":"5.0001"}`)
+				fmt.Fprint(w, `{"confirmation":"PURCHASE CAPACITY","mode":"purchase","existing_pool_id":null,"unit_price":"7.50","recurring_amount":"30.00","amount_due_after_credit":"5.0001"}`)
 			})
 			req, err := buildPoolCheckoutRequest(42, "monthly", "credit", "", "", "same-key", false)
 			if err != nil {
@@ -276,5 +312,72 @@ func TestPoolCheckoutRetrySaveFailureAborts(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestPoolRetryConcurrentPublication(t *testing.T) {
+	client := poolTestClient(t, func(http.ResponseWriter, *http.Request) {
+		t.Error("cache test must not contact API")
+	})
+	req, _ := buildPoolCheckoutRequest(42, "monthly", "credit", "", "", "same-key", false)
+	cache, err := newPoolRetryCache(client, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cache.confirmation = "PURCHASE CAPACITY"
+	const writers = 8
+	results := make(chan string, writers)
+	start := make(chan struct{})
+	var group sync.WaitGroup
+	for i := 1; i <= writers; i++ {
+		group.Add(1)
+		go func(i int) {
+			defer group.Done()
+			<-start
+			amount := json.Number(fmt.Sprintf("%d.00", i))
+			quote := &api.ResourcePoolExpectedQuote{Mode: "purchase", UnitPrice: amount, RecurringAmount: amount, AmountDueAfterCredit: amount}
+			if cache.save(quote) == nil {
+				results <- amount.String()
+			}
+		}(i)
+	}
+	close(start)
+	group.Wait()
+	close(results)
+	var winners []string
+	for amount := range results {
+		winners = append(winners, amount)
+	}
+	if len(winners) != 1 {
+		t.Fatalf("successful writers=%v, want exactly one", winners)
+	}
+	quote, err := cache.load()
+	if err != nil || quote == nil || quote.AmountDueAfterCredit.String() != winners[0] {
+		t.Fatalf("winning record was overwritten or incomplete: quote=%+v err=%v", quote, err)
+	}
+	files, err := os.ReadDir(filepath.Dir(cache.path))
+	if err != nil || len(files) != 1 {
+		t.Fatalf("temporary files not cleaned up: files=%v err=%v", files, err)
+	}
+}
+
+func TestPoolCardRetryMissingApprovalFailsClosed(t *testing.T) {
+	client := poolTestClient(t, func(http.ResponseWriter, *http.Request) {
+		t.Error("legacy saved-card retry must not fetch a replacement quote or checkout")
+	})
+	req, _ := buildPoolCheckoutRequest(42, "monthly", "saved_card", "pm::123", "", "legacy-key", false)
+	cache, err := newPoolRetryCache(client, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	quote := &api.ResourcePoolExpectedQuote{Mode: "purchase", UnitPrice: "5.00", RecurringAmount: "5.00", AmountDueAfterCredit: "5.00"}
+	cache.confirmation = "PURCHASE CAPACITY"
+	if err := cache.save(quote); err != nil {
+		t.Fatal(err)
+	}
+	cmd, out, _ := poolTestCommand()
+	err = runPoolCheckout(cmd, client, req, true, false)
+	if err == nil || !strings.Contains(err.Error(), "card ending") || out.Len() != 0 {
+		t.Fatalf("err=%v stdout=%s", err, out)
 	}
 }
