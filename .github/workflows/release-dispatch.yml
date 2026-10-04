@@ -40,7 +40,10 @@ jobs:
           go-version: '1.24'
 
       - name: Create and push release tag
-        run: ./scripts/release-version.sh "${{ inputs.bump }}" --push
+        id: release_tag
+        run: |
+          ./scripts/release-version.sh "${{ inputs.bump }}" --push
+          echo "tag=$(git describe --tags --exact-match)" >> "${GITHUB_OUTPUT}"
 
       # Run GoReleaser in the SAME job rather than relying on the tag push to
       # trigger release.yml. The tag above is pushed with the default
@@ -57,3 +60,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+
+      - name: Notify Slack
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_ALERTS_WEBHOOK_URL }}
+        run: ./scripts/notify-slack-release.sh "${{ steps.release_tag.outputs.tag }}"
