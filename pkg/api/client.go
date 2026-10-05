@@ -12,6 +12,7 @@ import (
 
 	"github.com/hostodo/odo-cli/v2/pkg/auth"
 	"github.com/hostodo/odo-cli/v2/pkg/config"
+	"github.com/hostodo/odo-cli/v2/pkg/terminaltext"
 )
 
 // Client represents the API client
@@ -19,6 +20,7 @@ type Client struct {
 	BaseURL    string
 	HTTPClient *http.Client
 	config     *config.Config
+	authToken  string
 }
 
 // ErrNotAuthenticated indicates user needs to login
@@ -52,6 +54,19 @@ func NewClient(cfg *config.Config) (*Client, error) {
 	return client, nil
 }
 
+// PinAuthentication returns a shallow client copy that uses the credential
+// active now for every request in a multi-step operation. This prevents an
+// account switch in another process from splitting one workflow across users.
+func (c *Client) PinAuthentication() (*Client, error) {
+	token, err := auth.GetToken()
+	if err != nil {
+		return nil, ErrNotAuthenticated
+	}
+	pinned := *c
+	pinned.authToken = token
+	return &pinned, nil
+}
+
 // doRequestWithTimeout performs an HTTP request with a custom timeout.
 // It temporarily adjusts the HTTP client timeout for this request.
 func (c *Client) doRequestWithTimeout(method, path string, body interface{}, timeout time.Duration) (*http.Response, error) {
@@ -61,12 +76,17 @@ func (c *Client) doRequestWithTimeout(method, path string, body interface{}, tim
 	return c.doRequest(method, path, body)
 }
 
-// doRequest performs an HTTP request with token from keychain
+// doRequest performs an HTTP request with token from keychain or a pinned workflow credential.
 func (c *Client) doRequest(method, path string, body interface{}) (*http.Response, error) {
-	// Get token from keychain
-	token, err := auth.GetToken()
-	if err != nil {
-		return nil, ErrNotAuthenticated
+	// Multi-step billable workflows can pin the credential once; ordinary
+	// clients retain the historical behavior of reading the current keychain.
+	token := c.authToken
+	if token == "" {
+		var err error
+		token, err = auth.GetToken()
+		if err != nil {
+			return nil, ErrNotAuthenticated
+		}
 	}
 
 	var reqBody io.Reader
@@ -105,7 +125,7 @@ func (c *Client) doRequest(method, path string, body interface{}) (*http.Respons
 	// Check for invalid/expired/revoked token (401 Unauthorized)
 	if resp.StatusCode == 401 {
 		// Try to parse error detail for distinct revoked vs expired messages
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxAPIErrorBody))
 		resp.Body.Close()
 		var errResp struct {
 			Detail string `json:"detail"`
@@ -141,11 +161,17 @@ func (c *Client) Delete(path string) (*http.Response, error) {
 	return c.doRequest("DELETE", path, nil)
 }
 
-// parseResponse reads and unmarshals the response body
+const maxAPIErrorBody = 16 * 1024
+
+// parseResponse reads and unmarshals the response body.
 func parseResponse(resp *http.Response, v interface{}) error {
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	var reader io.Reader = resp.Body
+	if resp.StatusCode >= 400 {
+		reader = io.LimitReader(reader, maxAPIErrorBody)
+	}
+	body, err := io.ReadAll(reader)
 	if err != nil {
 		return fmt.Errorf("failed to read response body: %w", err)
 	}
@@ -153,9 +179,18 @@ func parseResponse(resp *http.Response, v interface{}) error {
 	if resp.StatusCode >= 400 {
 		var errorResp ErrorResponse
 		if err := json.Unmarshal(body, &errorResp); err == nil {
-			return fmt.Errorf("API error (%d): %s", resp.StatusCode, errorResp.Detail)
+			if strings.TrimSpace(errorResp.Detail) != "" {
+				return fmt.Errorf("API error (%d): %s", resp.StatusCode, terminaltext.Clean(errorResp.Detail))
+			}
+			if strings.TrimSpace(errorResp.Message) != "" {
+				return fmt.Errorf("API error (%d): %s", resp.StatusCode, terminaltext.Clean(errorResp.Message))
+			}
 		}
-		return fmt.Errorf("API error (%d): %s", resp.StatusCode, string(body))
+		// Preserve field-validation maps and unrecognized error payloads.
+		if len(bytes.TrimSpace(body)) == 0 {
+			return fmt.Errorf("API error (%d): %s", resp.StatusCode, http.StatusText(resp.StatusCode))
+		}
+		return fmt.Errorf("API error (%d): %s", resp.StatusCode, terminaltext.Clean(string(body)))
 	}
 
 	if v != nil {

@@ -119,6 +119,64 @@ List active CLI sessions.
 odo auth sessions
 ```
 
+### Capacity Commands
+
+```bash
+odo pools list --simple
+odo pools show pool::abc --details
+odo pools options
+odo pools quote --plan-id 42 --billing-cycle annually --promo SAVE
+odo pools purchase --plan-id 42
+odo pools purchase --plan-id 42 --payment-method saved_card --payment-method-id pm::123 --idempotency-key my-purchase-1 --yes
+odo pools update pool::abc --display-name Production --autorenew=true
+odo pools update pool::abc --autorenew=false
+odo pools cancel pool::abc --reason "No longer needed"
+```
+
+A first purchase fetches and displays a fresh quote with the selected payment
+method before asking you to type the server's exact confirmation phrase. Saved
+cards also require a separate exact charge phrase showing the card, ending, and
+amount. Use `--yes` to explicitly accept both applicable phrases in scripts.
+Servers that omit the generic confirmation cannot be used for purchases.
+The default payment method is hosted Stripe checkout; a validated HTTPS checkout
+URL is printed alone on stdout. Quotes, approvals, and idempotency keys go to stderr.
+Reuse the same `--idempotency-key` with the same arguments, API origin, and account
+when retrying; rotating the bearer token for that account does not invalidate retries.
+Confirmed quote snapshots are saved in `~/.odo/capacity-checkouts-v2/` before checkout,
+with owner-only permissions on Unix and inherited profile ACLs on Windows.
+Cached retries reuse the exact saved quote and confirmations without fetching a
+new quote, even if prices, credits, or Capacity have since changed. An explicit
+key without a local record is treated as first use, with a stderr notice.
+Keep these records when an outcome is unknown; recovery on another machine also
+requires the original authentication key. Corrupt records or changed inputs abort
+checkout. Records use HMAC-SHA256 with a stable random 32-byte OS keychain secret;
+when the keychain is unavailable at initialization, the secret is saved with 0600
+permissions in `~/.odo/capacity-retry-key`, outside the cache directory. That file
+otherwise records the keychain storage choice. Inaccessible keys fail closed, as
+does a missing key marker when the v2 cache directory exists, even if empty. Legacy
+unauthenticated records in `~/.odo/capacity-checkouts/` are preserved but never replayed or migrated,
+and do not block key initialization for new purchases. Reconcile any legacy checkout
+before using a new key. Key initialization serializes with an OS advisory lock that
+releases automatically on process exit; stale directories from the old
+`capacity-retry-key.lock` lock are ignored and preserved. Generic confirmations are
+encrypted at rest; saved-card phrases are reconstructed from the supplied card ID,
+safe cached last four digits, and original amount. No plaintext card IDs, provider
+secrets, or credentials are cached. Human output strips terminal control sequences;
+non-replay successful `--json` payloads are preserved byte for byte.
+Human-mode retries show the backend phase and order/invoice status on stderr,
+distinguishing an unresolved outcome from a completed checkout with an unpaid
+invoice. Replay output omits checkout/provider fields and invoice URLs so secret
+query parameters cannot be exposed; non-replay stdout remains a validated HTTPS
+checkout URL or raw JSON.
+Selecting another tier can change existing Capacity; review the quote's mode
+and recurring amount.
+
+Cancellation also cancels the member instances and requires typing `CANCEL` or
+passing `--yes`. All Capacity commands support `--json` to print the raw API
+response as formatted JSON, including fields unknown to the CLI. `--json` does
+not bypass confirmation. List/show retain `--simple`, `--details`, and the default
+interactive table.
+
 ### Instance Commands
 
 All instance commands are under `odo instances` (alias: `odo i`). Flat shortcuts like `odo ssh`, `odo list`, `odo start` etc. also work.

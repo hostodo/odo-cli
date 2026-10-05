@@ -47,6 +47,11 @@ Billing:
 Capacity:
   odo pools list                   # List capacity subscriptions
   odo pools show <pool-id>         # Show capacity quota and usage
+  odo pools options                # List Capacity plans and prices
+  odo pools quote --plan-id <id>   # Get a fresh Capacity quote
+  odo pools purchase --plan-id <id> # Purchase or change Capacity
+  odo pools update <pool-id>       # Update display name or Autorenew
+  odo pools cancel <pool-id>       # Cancel Capacity and its instances
 
 Support:
   odo tickets list                 # List support tickets

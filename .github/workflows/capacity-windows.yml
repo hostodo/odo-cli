@@ -1,0 +1,26 @@
+name: Capacity Windows tests
+
+on:
+  pull_request:
+    paths:
+      - 'cmd/pools*'
+      - 'pkg/api/**'
+      - 'pkg/terminaltext/**'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/capacity-windows.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  capacity:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Test Capacity checkout, cache publication, and API contracts
+        run: go test -count=1 ./cmd ./pkg/api -run 'Test(Pool|Capacity|CheckoutResourcePool|ResourcePoolExpectedQuote)'
