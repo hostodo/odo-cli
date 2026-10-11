@@ -151,11 +151,7 @@ func parseResponse(resp *http.Response, v interface{}) error {
 	}
 
 	if resp.StatusCode >= 400 {
-		var errorResp ErrorResponse
-		if err := json.Unmarshal(body, &errorResp); err == nil {
-			return fmt.Errorf("API error (%d): %s", resp.StatusCode, errorResp.Detail)
-		}
-		return fmt.Errorf("API error (%d): %s", resp.StatusCode, string(body))
+		return parseAPIError(resp.StatusCode, body)
 	}
 
 	if v != nil {

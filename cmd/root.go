@@ -6,6 +6,7 @@ import (
 
 	"github.com/hostodo/odo-cli/v2/cmd/auth"
 	"github.com/hostodo/odo-cli/v2/cmd/instances"
+	"github.com/hostodo/odo-cli/v2/cmd/pools"
 	"github.com/hostodo/odo-cli/v2/pkg/config"
 	"github.com/spf13/cobra"
 )
@@ -54,6 +55,14 @@ Support:
   odo tickets reply <ticket-id>    # Reply to a support ticket
   odo tickets show <ticket-id>     # Show ticket details and replies
   odo tickets departments          # List support departments
+
+Pools:
+  odo pools                        # List Hostodo pools
+  odo pools show <pool-id>         # Show pool quota and member VMs
+  odo pools options                # List pool tiers
+  odo pools buy                    # Buy a Hostodo pool
+  odo pools upgrade                # Upgrade an existing pool
+  odo pools vm                     # Create a $0 VM inside a pool
 
 SSH Keys:
   odo keys list                    # List your SSH keys
@@ -106,6 +115,9 @@ func init() {
 
 	// Support ticket commands
 	rootCmd.AddCommand(ticketsCmd)
+
+	// Hostodo resource pools
+	rootCmd.AddCommand(pools.PoolsCmd)
 
 	// SSH key management
 	rootCmd.AddCommand(keysCmd)
