@@ -3,7 +3,6 @@ package api
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"time"
 )
 
@@ -32,12 +31,9 @@ func (c *Client) GetInstance(instanceID string) (*Instance, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
-
-	// Read body once, try both unmarshal strategies
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
+	var body json.RawMessage
+	if err := parseResponse(resp, &body); err != nil {
+		return nil, err
 	}
 
 	// Try wrapped format first: {"instance": {...}}
@@ -71,6 +67,23 @@ func (c *Client) GetInstancePowerStatus(instanceID string) (string, error) {
 	}
 
 	return wrappedResp.Instance.PowerStatus, nil
+}
+
+// SetInstanceProtection changes protection only; it never retries or reauthorizes.
+func (c *Client) SetInstanceProtection(instanceID string, enabled bool, confirmation string) (*Instance, error) {
+	body := struct {
+		Enabled      bool   `json:"enabled"`
+		Confirmation string `json:"confirmation,omitempty"`
+	}{enabled, confirmation}
+	resp, err := c.Patch(fmt.Sprintf("/client/instances/%s/protection/", instanceID), body)
+	if err != nil {
+		return nil, err
+	}
+	var result InstanceDetailResponse
+	if err := parseResponse(resp, &result); err != nil {
+		return nil, err
+	}
+	return &result.Instance, nil
 }
 
 // StartInstance starts a stopped instance

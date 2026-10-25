@@ -172,6 +172,9 @@ func runTUIAction(client *api.Client, tm ui.TableModel) {
 		fmt.Println("✓ Force restart command sent")
 
 	case "rename":
+		if instance.ProtectionEnabled {
+			exitWithError("Instance %s is protected; explicitly unprotect it before renaming", instance.InstanceID)
+		}
 		newHostname := tm.RenameTarget
 		if err := deploy.Validate(newHostname); err != nil {
 			exitWithError("Invalid hostname %q: %v", newHostname, err)

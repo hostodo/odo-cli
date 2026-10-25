@@ -153,7 +153,14 @@ func parseResponse(resp *http.Response, v interface{}) error {
 	if resp.StatusCode >= 400 {
 		var errorResp ErrorResponse
 		if err := json.Unmarshal(body, &errorResp); err == nil {
-			return fmt.Errorf("API error (%d): %s", resp.StatusCode, errorResp.Detail)
+			errorResp.HTTPStatus = resp.StatusCode
+			if errorResp.Detail == "" {
+				errorResp.Detail = errorResp.Message
+			}
+			if errorResp.Detail == "" {
+				errorResp.Detail = string(body)
+			}
+			return &errorResp
 		}
 		return fmt.Errorf("API error (%d): %s", resp.StatusCode, string(body))
 	}
@@ -164,5 +171,40 @@ func parseResponse(resp *http.Response, v interface{}) error {
 		}
 	}
 
+	return nil
+}
+
+func (e *ErrorResponse) Error() string {
+	message := fmt.Sprintf("API error (%d): %s", e.HTTPStatus, e.Detail)
+	if e.Code != "" {
+		message += " [" + e.Code + "]"
+	}
+	if e.Code == "forbidden_scope" {
+		message += "; protection changes require explicit reauthorization: run 'odo login --protection' and approve vms:protection in your browser"
+	}
+	return message
+}
+
+// UnmarshalJSON accepts legacy numeric codes as well as structured string codes.
+func (e *ErrorResponse) UnmarshalJSON(data []byte) error {
+	type alias ErrorResponse
+	var wire struct {
+		*alias
+		Code json.RawMessage `json:"code"`
+	}
+	wire.alias = (*alias)(e)
+	if err := json.Unmarshal(data, &wire); err != nil {
+		return err
+	}
+	if len(wire.Code) == 0 || string(wire.Code) == "null" {
+		return nil
+	}
+	if err := json.Unmarshal(wire.Code, &e.Code); err != nil {
+		var number json.Number
+		if err := json.Unmarshal(wire.Code, &number); err != nil {
+			return err
+		}
+		e.Code = number.String()
+	}
 	return nil
 }

@@ -40,6 +40,7 @@ Example:
 }
 
 func init() {
+	loginCmd.Flags().Bool("protection", false, "Request vms:protection scope (requires explicit browser approval)")
 	AuthCmd.AddCommand(loginCmd)
 }
 
@@ -114,7 +115,14 @@ func runLogin(cmd *cobra.Command, args []string) {
 	fmt.Println()
 
 	// Initiate device flow (with device ID)
-	deviceCode, err := oauthClient.InitiateDeviceFlow(deviceName, deviceID)
+	var scopes []string
+	if protection, _ := cmd.Flags().GetBool("protection"); protection {
+		// Explicit scopes replace (rather than extend) device-flow defaults.
+		// Retain legacy CLI permissions when opting into protection changes.
+		scopes = []string{"vms:read", "vms:console", "vms:power", "account:read", "vms:protection"}
+		fmt.Println("Requesting vms:protection. Review and explicitly approve this scope in your browser.")
+	}
+	deviceCode, err := oauthClient.InitiateDeviceFlow(deviceName, deviceID, scopes...)
 	if err != nil {
 		fmt.Println(errorStyle.Render("Error: ") + "Failed to start authentication: " + err.Error())
 		os.Exit(1)

@@ -114,6 +114,9 @@ func init() {
 	rootCmd.AddCommand(completionCmd)
 
 	// Root-level auth aliases (visible)
+	if loginCmd, _, err := auth.AuthCmd.Find([]string{"login"}); err == nil {
+		loginAliasCmd.Flags().AddFlagSet(loginCmd.Flags())
+	}
 	rootCmd.AddCommand(loginAliasCmd)
 	rootCmd.AddCommand(logoutAliasCmd)
 	rootCmd.AddCommand(whoamiAliasCmd)

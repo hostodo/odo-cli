@@ -62,15 +62,18 @@ func NewDeviceFlowClient(baseURL string) *DeviceFlowClient {
 }
 
 // InitiateDeviceFlow starts the device authorization flow
-func (c *DeviceFlowClient) InitiateDeviceFlow(deviceName, deviceID string) (*DeviceCodeResponse, error) {
+func (c *DeviceFlowClient) InitiateDeviceFlow(deviceName, deviceID string, scopes ...string) (*DeviceCodeResponse, error) {
 	url := c.BaseURL + "/v1/oauth/device/authorize"
 
-	body := map[string]string{}
+	body := map[string]interface{}{}
 	if deviceName != "" {
 		body["device_name"] = deviceName
 	}
 	if deviceID != "" {
 		body["device_id"] = deviceID
+	}
+	if len(scopes) > 0 {
+		body["scopes"] = scopes
 	}
 
 	jsonBody, err := json.Marshal(body)
