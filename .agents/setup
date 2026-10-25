@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# .agents/setup — idempotent dependency install for agent sandboxes.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+STAMP=.agents/.setup-stamp
+HASH=$( (sha256sum go.mod go.sum 2>/dev/null || true) | sha256sum | awk '{print $1}')
+if [ -f "$STAMP" ] && [ "$(cat "$STAMP")" = "$HASH" ] && [ -x bin/odo ]; then
+  echo "odo-cli: deps already installed ($HASH)"
+  exit 0
+fi
+
+command -v go >/dev/null || { echo "go toolchain required (1.24+)"; exit 1; }
+go mod download
+mkdir -p bin
+go build -o bin/odo .
+
+mkdir -p .agents
+printf '%s\n' "$HASH" > "$STAMP"
+echo "odo-cli: ready — ./bin/odo version"
