@@ -64,6 +64,10 @@ func runReinstall(cmd *cobra.Command, args []string) error {
 	}
 	instance := result.Instance
 
+	if instance.ProtectionEnabled {
+		return fmt.Errorf("instance %s is protected; explicitly unprotect it before reinstalling (--yes does not bypass protection)", instance.InstanceID)
+	}
+
 	if instance.IsSuspended {
 		return fmt.Errorf("instance %s is suspended and cannot be reinstalled", instance.Hostname)
 	}

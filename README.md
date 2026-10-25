@@ -59,6 +59,16 @@ odo login
 
 Uses OAuth device flow — a browser window opens for you to authorize the CLI. Your access token is stored in the OS keychain (macOS Keychain, Linux Secret Service). On headless systems without a keychain, a plain token file is stored at `~/.odo/token` with `0600` permissions.
 
+Protection changes require an explicit opt-in: run `odo login --protection` (or `odo auth login --protection`) and explicitly approve `vms:protection` in the browser. Normal login does not request it, existing sessions do not gain it automatically, and commands never automatically log in again.
+
+```bash
+odo instances protect <hostname-or-id>
+odo instances unprotect <hostname-or-id>       # Type UNPROTECT <canonical-instance-id>
+odo instances unprotect <hostname-or-id> --yes # Explicit automation confirmation
+```
+
+Protection state is visible in list/status, including JSON (`protection_enabled`). Protected instances cannot be renamed or reinstalled; reinstall `--yes` never bypasses protection. All power operations remain available. Backend protection and scope checks are authoritative.
+
 ### Basic Usage
 
 ```bash

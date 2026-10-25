@@ -55,6 +55,7 @@ func NewTableModel(instances []api.Instance, fetchPower PowerStatusFunc) TableMo
 		{Title: "Hostname", Width: 25},
 		{Title: "IP Address", Width: 16},
 		{Title: "Status", Width: 14},
+		{Title: "Protected", Width: 9},
 		{Title: "RAM", Width: 10},
 		{Title: "CPU", Width: 6},
 		{Title: "Disk", Width: 8},
@@ -67,6 +68,7 @@ func NewTableModel(instances []api.Instance, fetchPower PowerStatusFunc) TableMo
 			truncate(instance.Hostname, 25),
 			instance.MainIP,
 			instance.Status,
+			fmt.Sprintf("%t", instance.ProtectionEnabled),
 			fmt.Sprintf("%d MB", instance.RAM),
 			fmt.Sprintf("%d", instance.VCPU),
 			fmt.Sprintf("%d GB", instance.Disk),
@@ -185,12 +187,18 @@ func (m TableModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.quitting = true
 				return m, tea.Quit
 			case "n":
+				if m.instances[m.selectedInstance].ProtectionEnabled {
+					return m, nil
+				}
 				m.mode = RenameMode
 				m.renameInput.SetValue(m.instances[m.selectedInstance].Hostname)
 				m.renameInput.Focus()
 				m.renameInput.CursorEnd()
 				return m, textinput.Blink
 			case "i":
+				if m.instances[m.selectedInstance].ProtectionEnabled {
+					return m, nil
+				}
 				m.APIAction = "reinstall"
 				m.ActionInstance = &m.instances[m.selectedInstance]
 				m.quitting = true

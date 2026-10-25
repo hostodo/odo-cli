@@ -61,6 +61,9 @@ func runRename(cmd *cobra.Command, args []string) {
 	}
 
 	instance := result.Instance
+	if instance.ProtectionEnabled && newHostname != instance.Hostname {
+		exitWithError("Instance %s is protected; explicitly unprotect it before renaming", instance.InstanceID)
+	}
 
 	fmt.Printf("Renaming instance %s (%s) to %s...\n", instance.Hostname, instance.MainIP, newHostname)
 

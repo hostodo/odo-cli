@@ -47,7 +47,7 @@ func FormatInstancesSimpleTable(instances []api.Instance) string {
 
 	// Header
 	header := fmt.Sprintf(
-		"%-*s  %-*s  %-*s  %-*s  %-*s  %*s  %*s  %*s",
+		"%-*s  %-*s  %-*s  %-*s  %-*s  %*s  %*s  %*s  PROTECTION",
 		idWidth, "ID",
 		hostnameWidth, "HOSTNAME",
 		ipWidth, "IP ADDRESS",
@@ -63,7 +63,7 @@ func FormatInstancesSimpleTable(instances []api.Instance) string {
 	// Rows
 	for _, instance := range instances {
 		row := fmt.Sprintf(
-			"%-*s  %-*s  %-*s  %-*s  %-*s  %*d  %*d  %*d",
+			"%-*s  %-*s  %-*s  %-*s  %-*s  %*d  %*d  %*d  %t",
 			idWidth, truncate(instance.InstanceID, idWidth),
 			hostnameWidth, truncate(instance.Hostname, hostnameWidth),
 			ipWidth, truncate(instance.MainIP, ipWidth),
@@ -72,6 +72,7 @@ func FormatInstancesSimpleTable(instances []api.Instance) string {
 			ramWidth, instance.RAM,
 			cpuWidth, instance.VCPU,
 			diskWidth, instance.Disk,
+			instance.ProtectionEnabled,
 		)
 		sb.WriteString(row + "\n")
 	}
@@ -100,6 +101,7 @@ func FormatInstancesDetailedTable(instances []api.Instance) string {
 		}
 		sb.WriteString(fmt.Sprintf("  Status:       %s\n", instance.Status))
 		sb.WriteString(fmt.Sprintf("  Power:        %s\n", instance.PowerStatus))
+		sb.WriteString(fmt.Sprintf("  Protection:   %t\n", instance.ProtectionEnabled))
 		sb.WriteString(fmt.Sprintf("  Resources:    %d MB RAM, %d CPU, %d GB Disk\n",
 			instance.RAM, instance.VCPU, instance.Disk))
 		sb.WriteString(fmt.Sprintf("  Bandwidth:    %.2f / %d GB\n",
@@ -130,6 +132,7 @@ func FormatInstanceDetail(instance *api.Instance) string {
 	sb.WriteString(fmt.Sprintf("  Hostname:     %s\n", instance.Hostname))
 	sb.WriteString(fmt.Sprintf("  Status:       %s\n", GetPowerStatusBadge(instance.Status)))
 	sb.WriteString(fmt.Sprintf("  Power:        %s\n", GetPowerStatusBadge(instance.PowerStatus)))
+	sb.WriteString(fmt.Sprintf("  Protection:   %t\n", instance.ProtectionEnabled))
 	sb.WriteString("\n")
 
 	// Network

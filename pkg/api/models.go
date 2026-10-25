@@ -66,6 +66,7 @@ type Instance struct {
 	MainIP                   string   `json:"main_ip"`
 	Status                   string   `json:"status"`
 	PowerStatus              string   `json:"power_status"`
+	ProtectionEnabled        bool     `json:"protection_enabled"`
 	AutorenewalEnabled       bool     `json:"autorenewal_enabled"`
 	AutoRenewalPaymentMethod string   `json:"auto_renewal_payment_method"`
 	IPs                      []string `json:"ips"`
@@ -131,9 +132,13 @@ type CLISessionsResponse struct {
 
 // ErrorResponse represents an API error
 type ErrorResponse struct {
-	Detail  string `json:"detail"`
-	Message string `json:"message"`
-	Code    int    `json:"code"`
+	Detail            string `json:"detail"`
+	Message           string `json:"message"`
+	Code              string `json:"code"`
+	InstanceID        string `json:"instance_id"`
+	Operation         string `json:"operation"`
+	ProtectionEnabled *bool  `json:"protection_enabled,omitempty"`
+	HTTPStatus        int    `json:"-"`
 }
 
 // PlanCategory represents a plan category associated with a region
