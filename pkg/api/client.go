@@ -30,6 +30,12 @@ var ErrTokenExpired = fmt.Errorf("session expired - run 'hostodo login'")
 // ErrSessionRevoked indicates session was revoked and user needs to re-login
 var ErrSessionRevoked = fmt.Errorf("session revoked - run 'hostodo login' to authenticate again")
 
+// ErrAuthenticationResponseTooLarge prevents an untrusted authentication error
+// response from consuming unbounded client memory.
+var ErrAuthenticationResponseTooLarge = fmt.Errorf("authentication error response is too large")
+
+const maxAuthenticationErrorResponseBytes = 2 << 20
+
 // NewClient creates a new API client
 func NewClient(cfg *config.Config) (*Client, error) {
 	// Create cookie jar for session management
@@ -105,8 +111,16 @@ func (c *Client) doRequest(method, path string, body interface{}) (*http.Respons
 	// Check for invalid/expired/revoked token (401 Unauthorized)
 	if resp.StatusCode == 401 {
 		// Try to parse error detail for distinct revoked vs expired messages
-		body, _ := io.ReadAll(resp.Body)
+		body, readErr := io.ReadAll(
+			io.LimitReader(resp.Body, maxAuthenticationErrorResponseBytes+1),
+		)
 		resp.Body.Close()
+		if len(body) > maxAuthenticationErrorResponseBytes {
+			return nil, ErrAuthenticationResponseTooLarge
+		}
+		if readErr != nil {
+			return nil, fmt.Errorf("failed to read authentication error response: %w", readErr)
+		}
 		var errResp struct {
 			Detail string `json:"detail"`
 		}
