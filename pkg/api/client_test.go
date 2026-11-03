@@ -2,6 +2,8 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -12,6 +14,58 @@ import (
 	"github.com/hostodo/odo-cli/v2/pkg/auth"
 	"github.com/hostodo/odo-cli/v2/pkg/config"
 )
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (fn roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return fn(request)
+}
+
+type boundedErrorReadCloser struct {
+	remaining int
+	finalErr  error
+	closed    bool
+}
+
+func (reader *boundedErrorReadCloser) Read(buffer []byte) (int, error) {
+	if reader.remaining == 0 {
+		return 0, io.EOF
+	}
+	count := len(buffer)
+	if count > reader.remaining {
+		count = reader.remaining
+	}
+	for index := 0; index < count; index++ {
+		buffer[index] = 'x'
+	}
+	reader.remaining -= count
+	if reader.remaining == 0 {
+		if reader.finalErr != nil {
+			return count, reader.finalErr
+		}
+		return count, io.EOF
+	}
+	return count, nil
+}
+
+func (reader *boundedErrorReadCloser) Close() error {
+	reader.closed = true
+	return nil
+}
+
+func clientWith401Body(body io.ReadCloser) *Client {
+	return &Client{
+		BaseURL: "https://api.example.test",
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusUnauthorized,
+				Body:       body,
+				Header:     make(http.Header),
+			}, nil
+		})},
+		config: &config.Config{},
+	}
+}
 
 // newTestClient creates a Client pointed at a test server.
 func newTestClient(t *testing.T, serverURL string) *Client {
@@ -427,6 +481,69 @@ func TestClient_401_Revoked_ReturnsSessionRevokedError(t *testing.T) {
 	_, err := client.ListPlans()
 	if err != ErrSessionRevoked {
 		t.Errorf("expected ErrSessionRevoked, got: %v (type: %T)", err, err)
+	}
+}
+
+func TestClient_401_OversizedBodyIsRejectedAtBound(t *testing.T) {
+	injectToken(t)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(strings.Repeat("x", maxAuthenticationErrorResponseBytes+1)))
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	_, err := client.Get("/oversized-auth-response")
+	if !errors.Is(err, ErrAuthenticationResponseTooLarge) {
+		t.Fatalf("expected ErrAuthenticationResponseTooLarge, got: %v", err)
+	}
+}
+
+func TestClient_401_OversizedBodyWinsOverFinalReadErrorAndCloses(t *testing.T) {
+	injectToken(t)
+	readFailure := errors.New("synthetic final read failure")
+	body := &boundedErrorReadCloser{
+		remaining: maxAuthenticationErrorResponseBytes + 1,
+		finalErr:  readFailure,
+	}
+
+	_, err := clientWith401Body(body).Get("/oversized-auth-response")
+	if !errors.Is(err, ErrAuthenticationResponseTooLarge) {
+		t.Fatalf("expected oversized sentinel, got: %v", err)
+	}
+	if !body.closed {
+		t.Fatal("401 response body was not closed")
+	}
+}
+
+func TestClient_401_ExactBoundaryIsAcceptedAndCloses(t *testing.T) {
+	injectToken(t)
+	body := &boundedErrorReadCloser{remaining: maxAuthenticationErrorResponseBytes}
+
+	_, err := clientWith401Body(body).Get("/exact-boundary-auth-response")
+	if !errors.Is(err, ErrTokenExpired) {
+		t.Fatalf("expected ordinary expired-token classification, got: %v", err)
+	}
+	if !body.closed {
+		t.Fatal("401 response body was not closed")
+	}
+}
+
+func TestClient_401_ShortReadErrorIsReturnedAndCloses(t *testing.T) {
+	injectToken(t)
+	readFailure := errors.New("synthetic short read failure")
+	body := &boundedErrorReadCloser{remaining: 128, finalErr: readFailure}
+
+	_, err := clientWith401Body(body).Get("/short-auth-response")
+	if !errors.Is(err, readFailure) {
+		t.Fatalf("expected wrapped read failure, got: %v", err)
+	}
+	if errors.Is(err, ErrAuthenticationResponseTooLarge) {
+		t.Fatalf("short response was misclassified as oversized: %v", err)
+	}
+	if !body.closed {
+		t.Fatal("401 response body was not closed")
 	}
 }
 
