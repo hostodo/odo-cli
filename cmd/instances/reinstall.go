@@ -178,7 +178,12 @@ func displayReinstallResult(r *api.ReinstallResponse, instance *api.Instance, ss
 	sshCommand := fmt.Sprintf("ssh %s@%s", sshUser, instance.MainIP)
 	switch {
 	case r.RootPW != "":
-		access = "Root Password:  " + r.RootPW
+		password := "Root Password:  " + r.RootPW
+		if sshKeyName == "" {
+			access += "\n" + password
+		} else {
+			access = password
+		}
 	case sshKeyName != "":
 		access = fmt.Sprintf("SSH Key:        %q\nReplace /path/to/private-key with the matching private key path.", sshKeyName)
 		sshCommand = fmt.Sprintf(`ssh -i "/path/to/private-key" %s@%s`, sshUser, instance.MainIP)
