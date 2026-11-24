@@ -16,9 +16,10 @@ import (
 )
 
 var (
-	reinstallOSFlag     string
-	reinstallSSHKeyFlag string
-	reinstallYesFlag    bool
+	reinstallOSFlag       string
+	reinstallSSHKeyFlag   string
+	reinstallNoSSHKeyFlag bool
+	reinstallYesFlag      bool
 )
 
 // ReinstallCmd reinstalls the OS on an instance
@@ -33,7 +34,8 @@ All data on the instance will be lost. Access after reinstall depends on the SSH
 Examples:
   odo instances reinstall mybox
   odo instances reinstall mybox --os "Ubuntu 22.04"
-  odo instances reinstall mybox --os "Debian 12" --yes`,
+  odo instances reinstall mybox --os "Debian 12" --yes
+  odo instances reinstall mybox --no-ssh-key`,
 	Args: cobra.ExactArgs(1),
 	RunE: runReinstall,
 }
@@ -41,6 +43,8 @@ Examples:
 func init() {
 	ReinstallCmd.Flags().StringVar(&reinstallOSFlag, "os", "", "OS template to install (skips prompt)")
 	ReinstallCmd.Flags().StringVar(&reinstallSSHKeyFlag, "ssh-key", "", "SSH key name to inject")
+	ReinstallCmd.Flags().BoolVar(&reinstallNoSSHKeyFlag, "no-ssh-key", false, "Reinstall for VM console access without an SSH key")
+	ReinstallCmd.MarkFlagsMutuallyExclusive("ssh-key", "no-ssh-key")
 	ReinstallCmd.Flags().BoolVarP(&reinstallYesFlag, "yes", "y", false, "Skip confirmation prompt")
 }
 
@@ -80,31 +84,12 @@ func runReinstall(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	keys, err := client.ListSSHKeys()
-	if err != nil {
-		return fmt.Errorf("failed to load SSH keys: %w", err)
-	}
 	var selectedKey api.SSHKey
-	if reinstallSSHKeyFlag == "" {
-		selectedKey, err = chooseSSHKey(keys, false)
+	if !reinstallNoSSHKeyFlag {
+		selectedKey, err = resolveReinstallSSHKey(client)
 		if err != nil {
 			return err
 		}
-	} else {
-		for _, key := range keys {
-			if key.Name == reinstallSSHKeyFlag {
-				if selectedKey.ID > 0 {
-					return fmt.Errorf("multiple SSH keys are named %q. Select a key interactively", reinstallSSHKeyFlag)
-				}
-				selectedKey = key
-			}
-		}
-		if selectedKey.ID <= 0 {
-			return fmt.Errorf("SSH key %q could not be found", reinstallSSHKeyFlag)
-		}
-	}
-	if selectedKey.Name != "" && selectedKey.ID <= 0 {
-		return fmt.Errorf("SSH key %q is unavailable", selectedKey.Name)
 	}
 
 	// Confirmation
@@ -147,6 +132,37 @@ func runReinstall(cmd *cobra.Command, args []string) error {
 
 	displayReinstallResult(reinstallResp, instance, selectedKey.Name)
 	return nil
+}
+
+func resolveReinstallSSHKey(client *api.Client) (api.SSHKey, error) {
+	keys, err := client.ListSSHKeys()
+	if err != nil {
+		return api.SSHKey{}, fmt.Errorf("failed to load SSH keys: %w", err)
+	}
+	var selectedKey api.SSHKey
+	if reinstallSSHKeyFlag == "" {
+		selectedKey, err = chooseSSHKey(keys, false)
+		if err != nil {
+			return api.SSHKey{}, err
+		}
+	} else {
+		for _, key := range keys {
+			if key.Name == reinstallSSHKeyFlag {
+				if selectedKey.ID > 0 {
+					return api.SSHKey{}, fmt.Errorf("multiple SSH keys are named %q. Select a key interactively", reinstallSSHKeyFlag)
+				}
+				selectedKey = key
+			}
+		}
+		if selectedKey.ID <= 0 {
+			return api.SSHKey{}, fmt.Errorf("SSH key %q could not be found", reinstallSSHKeyFlag)
+		}
+	}
+	if selectedKey.Name != "" && selectedKey.ID <= 0 {
+		return api.SSHKey{}, fmt.Errorf("SSH key %q is unavailable", selectedKey.Name)
+	}
+
+	return selectedKey, nil
 }
 
 func displayReinstallResult(r *api.ReinstallResponse, instance *api.Instance, sshKeyName string) {
