@@ -185,8 +185,8 @@ func displayReinstallResult(r *api.ReinstallResponse, instance *api.Instance, ss
 			access = password
 		}
 	case sshKeyName != "":
-		access = fmt.Sprintf("SSH Key:        %q\nReplace /path/to/private-key with the matching private key path.", sshKeyName)
-		sshCommand = fmt.Sprintf(`ssh -F none -o IdentitiesOnly=yes -i "/path/to/private-key" %s@%s`, sshUser, instance.MainIP)
+		access = fmt.Sprintf("SSH Key:        %q\nConnect with the matching private key and verify the rebuilt VM's host key.", sshKeyName)
+		sshCommand = fmt.Sprintf("%s@%s", sshUser, instance.MainIP)
 	}
 
 	cardContent := fmt.Sprintf(`OS Reinstalled Successfully!
