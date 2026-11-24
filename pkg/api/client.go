@@ -153,7 +153,16 @@ func parseResponse(resp *http.Response, v interface{}) error {
 	if resp.StatusCode >= 400 {
 		var errorResp ErrorResponse
 		if err := json.Unmarshal(body, &errorResp); err == nil {
-			return fmt.Errorf("API error (%d): %s", resp.StatusCode, errorResp.Detail)
+			for _, message := range []string{
+				errorResp.Detail, errorResp.Message,
+				validationMessage(errorResp.SSHKeyID),
+				validationMessage(errorResp.Confirmation),
+			} {
+				if message != "" {
+					return fmt.Errorf("API error (%d): %s", resp.StatusCode, message)
+				}
+			}
+			return fmt.Errorf("API error (%d): %s", resp.StatusCode, http.StatusText(resp.StatusCode))
 		}
 		return fmt.Errorf("API error (%d): %s", resp.StatusCode, string(body))
 	}
@@ -165,4 +174,16 @@ func parseResponse(resp *http.Response, v interface{}) error {
 	}
 
 	return nil
+}
+
+func validationMessage(field json.RawMessage) string {
+	var message string
+	if json.Unmarshal(field, &message) == nil {
+		return message
+	}
+	var messages []string
+	if json.Unmarshal(field, &messages) == nil {
+		return strings.Join(messages, " ")
+	}
+	return ""
 }

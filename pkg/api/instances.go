@@ -136,7 +136,10 @@ type ReinstallResponse struct {
 // This is a long-running synchronous call (stop + delete + rebuild).
 func (c *Client) ReinstallInstance(instanceID string, templateID int, sshKeyID int) (*ReinstallResponse, error) {
 	path := fmt.Sprintf("/client/instances/%s/reinstall/", instanceID)
-	body := map[string]interface{}{"template_id": templateID}
+	body := map[string]interface{}{
+		"template_id":  templateID,
+		"confirmation": fmt.Sprintf("REINSTALL %s TO TEMPLATE %d", instanceID, templateID),
+	}
 	if sshKeyID > 0 {
 		body["ssh_key_id"] = sshKeyID
 	}

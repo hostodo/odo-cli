@@ -377,39 +377,44 @@ func selectSSHKey(client *api.Client, flag string, jsonMode bool) (string, error
 	if flag != "" {
 		return flag, nil
 	}
-	sshKeys, err := client.ListSSHKeys()
-	if err != nil || len(sshKeys) == 0 {
+	keys, err := client.ListSSHKeys()
+	if err != nil {
 		return "", nil
 	}
-	if len(sshKeys) == 1 {
+	selected, err := chooseSSHKey(keys, jsonMode)
+	return selected.Name, err
+}
+
+func chooseSSHKey(keys []api.SSHKey, jsonMode bool) (api.SSHKey, error) {
+	switch len(keys) {
+	case 0:
+		return api.SSHKey{}, nil
+	case 1:
 		if !jsonMode {
-			fmt.Printf("Using SSH key: %s\n", sshKeys[0].Name)
+			fmt.Printf("Using SSH key: %s\n", keys[0].Name)
 		}
-		return sshKeys[0].Name, nil
+		return keys[0], nil
 	}
-	// Multiple keys
+
 	if jsonMode {
-		return "", fmt.Errorf("multiple SSH keys found. Use --ssh-key flag to specify which one")
+		return api.SSHKey{}, fmt.Errorf("multiple SSH keys found. Use --ssh-key flag to specify which one")
 	}
-	keyOptions := make([]string, len(sshKeys))
-	for i, key := range sshKeys {
+	options := make([]huh.Option[api.SSHKey], 0, len(keys))
+	for _, key := range keys {
 		fingerprint, err := utils.CalculateSSHFingerprint(key.PublicKey)
 		if err != nil {
-			fingerprint = "(error)"
+			fingerprint = "unavailable"
 		}
-		keyOptions[i] = fmt.Sprintf("%s (%s)", key.Name, fingerprint)
+		options = append(options, huh.NewOption(fmt.Sprintf("%s (%s)", key.Name, fingerprint), key))
 	}
-	var selected string
-	err = huh.NewSelect[string]().
+	var selected api.SSHKey
+	err := huh.NewSelect[api.SSHKey]().
 		Title("Choose an SSH key:").
-		Options(huh.NewOptions(keyOptions...)...).
+		Options(options...).
 		Value(&selected).
 		Height(10).
 		Run()
-	if err != nil {
-		return "", err
-	}
-	return strings.Split(selected, " (")[0], nil
+	return selected, err
 }
 
 // --- Deploy execution ---
