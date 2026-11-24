@@ -102,7 +102,7 @@ func runReinstall(cmd *cobra.Command, args []string) error {
 	if !reinstallYesFlag {
 		access := "A new root password will be issued."
 		if sshKeyID > 0 {
-			access = "You can connect with the selected SSH key."
+			access = "An SSH key is selected."
 		}
 		warning := fmt.Sprintf(
 			"Reinstall %s (%s) with %s?\n  All data will be erased. %s",
