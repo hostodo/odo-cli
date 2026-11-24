@@ -155,8 +155,8 @@ func parseResponse(resp *http.Response, v interface{}) error {
 		if err := json.Unmarshal(body, &errorResp); err == nil {
 			for _, message := range []string{
 				errorResp.Detail, errorResp.Message,
-				strings.Join(errorResp.SSHKeyID, " "),
-				strings.Join(errorResp.Confirmation, " "),
+				validationMessage(errorResp.SSHKeyID),
+				validationMessage(errorResp.Confirmation),
 			} {
 				if message != "" {
 					return fmt.Errorf("API error (%d): %s", resp.StatusCode, message)
@@ -174,4 +174,16 @@ func parseResponse(resp *http.Response, v interface{}) error {
 	}
 
 	return nil
+}
+
+func validationMessage(field json.RawMessage) string {
+	var message string
+	if json.Unmarshal(field, &message) == nil {
+		return message
+	}
+	var messages []string
+	if json.Unmarshal(field, &messages) == nil {
+		return strings.Join(messages, " ")
+	}
+	return ""
 }

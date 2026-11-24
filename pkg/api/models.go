@@ -131,11 +131,11 @@ type CLISessionsResponse struct {
 
 // ErrorResponse represents an API error
 type ErrorResponse struct {
-	Detail       string   `json:"detail"`
-	Message      string   `json:"message"`
-	Code         int      `json:"code"`
-	SSHKeyID     []string `json:"ssh_key_id"`
-	Confirmation []string `json:"confirmation"`
+	Detail       string          `json:"detail"`
+	Message      string          `json:"message"`
+	Code         int             `json:"code"`
+	SSHKeyID     json.RawMessage `json:"ssh_key_id"`
+	Confirmation json.RawMessage `json:"confirmation"`
 }
 
 // PlanCategory represents a plan category associated with a region
