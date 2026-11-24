@@ -28,7 +28,7 @@ var ReinstallCmd = &cobra.Command{
 	ValidArgsFunction: resolver.CompleteHostname,
 	Long: `Wipe and reinstall the operating system on a VPS instance.
 
-All data on the instance will be lost. A new root password will be issued.
+All data on the instance will be lost. Access after reinstall depends on the SSH key and your VM console permissions.
 
 Examples:
   odo instances reinstall mybox
@@ -88,21 +88,25 @@ func runReinstall(cmd *cobra.Command, args []string) error {
 	var sshKeyID int
 	if sshKeyName != "" {
 		keys, err := client.ListSSHKeys()
-		if err == nil {
-			for _, k := range keys {
-				if k.Name == sshKeyName {
-					sshKeyID = k.ID
-					break
-				}
+		if err != nil {
+			return fmt.Errorf("failed to resolve SSH key %q: %w", sshKeyName, err)
+		}
+		for _, key := range keys {
+			if key.Name == sshKeyName {
+				sshKeyID = key.ID
+				break
 			}
+		}
+		if sshKeyID <= 0 {
+			return fmt.Errorf("SSH key %q could not be found", sshKeyName)
 		}
 	}
 
 	// Confirmation
 	if !reinstallYesFlag {
-		access := "A new root password will be issued."
+		access := "Access will require permission to view the VM console."
 		if sshKeyID > 0 {
-			access = "An SSH key is selected."
+			access = fmt.Sprintf("The SSH key %q will be used.", sshKeyName)
 		}
 		warning := fmt.Sprintf(
 			"Reinstall %s (%s) with %s?\n  All data will be erased. %s",
@@ -136,11 +140,11 @@ func runReinstall(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println(ui.SuccessStyle.Render("✓ Reinstall complete"))
 
-	displayReinstallResult(reinstallResp, instance)
+	displayReinstallResult(reinstallResp, instance, sshKeyName)
 	return nil
 }
 
-func displayReinstallResult(r *api.ReinstallResponse, instance *api.Instance) {
+func displayReinstallResult(r *api.ReinstallResponse, instance *api.Instance, sshKeyName string) {
 	sshUser := r.DefaultUser
 	if sshUser == "" {
 		sshUser = r.Instance.Template.DefaultUsername
@@ -149,9 +153,14 @@ func displayReinstallResult(r *api.ReinstallResponse, instance *api.Instance) {
 		sshUser = "root"
 	}
 
-	access := "Access:          Use the selected SSH key."
-	if r.RootPW != "" {
+	access := "Access:          Open the VM console in Hostodo."
+	sshCommand := fmt.Sprintf("ssh %s@%s", sshUser, instance.MainIP)
+	switch {
+	case r.RootPW != "":
 		access = "Root Password:  " + r.RootPW
+	case sshKeyName != "":
+		access = fmt.Sprintf("SSH Key:         %q", sshKeyName)
+		sshCommand = fmt.Sprintf("ssh -i <private-key-path> %s@%s", sshUser, instance.MainIP)
 	}
 
 	cardContent := fmt.Sprintf(`OS Reinstalled Successfully!
@@ -161,13 +170,12 @@ IP Address:     %s
 OS:             %s
 %s
 
-SSH:            ssh %s@%s`,
+SSH:            %s`,
 		instance.Hostname,
 		instance.MainIP,
 		r.Instance.Template.Name,
 		access,
-		sshUser,
-		instance.MainIP,
+		sshCommand,
 	)
 
 	cardStyle := lipgloss.NewStyle().
