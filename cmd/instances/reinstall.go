@@ -80,33 +80,38 @@ func runReinstall(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Select SSH key
-	sshKeyName, err := selectSSHKey(client, reinstallSSHKeyFlag, false)
+	keys, err := client.ListSSHKeys()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to load SSH keys: %w", err)
 	}
-	var sshKeyID int
-	if sshKeyName != "" {
-		keys, err := client.ListSSHKeys()
+	var selectedKey api.SSHKey
+	if reinstallSSHKeyFlag == "" {
+		selectedKey, err = chooseSSHKey(keys, false)
 		if err != nil {
-			return fmt.Errorf("failed to resolve SSH key %q: %w", sshKeyName, err)
+			return err
 		}
+	} else {
 		for _, key := range keys {
-			if key.Name == sshKeyName {
-				sshKeyID = key.ID
-				break
+			if key.Name == reinstallSSHKeyFlag {
+				if selectedKey.ID > 0 {
+					return fmt.Errorf("multiple SSH keys are named %q. Select a key interactively", reinstallSSHKeyFlag)
+				}
+				selectedKey = key
 			}
 		}
-		if sshKeyID <= 0 {
-			return fmt.Errorf("SSH key %q could not be found", sshKeyName)
+		if selectedKey.ID <= 0 {
+			return fmt.Errorf("SSH key %q could not be found", reinstallSSHKeyFlag)
 		}
+	}
+	if selectedKey.Name != "" && selectedKey.ID <= 0 {
+		return fmt.Errorf("SSH key %q is unavailable", selectedKey.Name)
 	}
 
 	// Confirmation
 	if !reinstallYesFlag {
 		access := "Access will require permission to view the VM console."
-		if sshKeyID > 0 {
-			access = fmt.Sprintf("The SSH key %q will be used.", sshKeyName)
+		if selectedKey.ID > 0 {
+			access = fmt.Sprintf("The SSH key %q will be used.", selectedKey.Name)
 		}
 		warning := fmt.Sprintf(
 			"Reinstall %s (%s) with %s?\n  All data will be erased. %s",
@@ -131,7 +136,7 @@ func runReinstall(cmd *cobra.Command, args []string) error {
 	s.Suffix = fmt.Sprintf(" Reinstalling %s with %s (this takes a few minutes)...", instance.Hostname, selectedTemplate.Name)
 	s.Start()
 
-	reinstallResp, err := client.ReinstallInstance(instance.InstanceID, selectedTemplate.ID, sshKeyID)
+	reinstallResp, err := client.ReinstallInstance(instance.InstanceID, selectedTemplate.ID, selectedKey.ID)
 
 	s.Stop()
 	if err != nil {
@@ -140,7 +145,7 @@ func runReinstall(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println(ui.SuccessStyle.Render("✓ Reinstall complete"))
 
-	displayReinstallResult(reinstallResp, instance, sshKeyName)
+	displayReinstallResult(reinstallResp, instance, selectedKey.Name)
 	return nil
 }
 
@@ -159,8 +164,8 @@ func displayReinstallResult(r *api.ReinstallResponse, instance *api.Instance, ss
 	case r.RootPW != "":
 		access = "Root Password:  " + r.RootPW
 	case sshKeyName != "":
-		access = fmt.Sprintf("SSH Key:         %q", sshKeyName)
-		sshCommand = fmt.Sprintf("ssh -i <private-key-path> %s@%s", sshUser, instance.MainIP)
+		access = fmt.Sprintf("SSH Key:        %q\nReplace /path/to/private-key with the matching private key path.", sshKeyName)
+		sshCommand = fmt.Sprintf(`ssh -i "/path/to/private-key" %s@%s`, sshUser, instance.MainIP)
 	}
 
 	cardContent := fmt.Sprintf(`OS Reinstalled Successfully!
