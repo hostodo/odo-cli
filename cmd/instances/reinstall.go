@@ -100,9 +100,13 @@ func runReinstall(cmd *cobra.Command, args []string) error {
 
 	// Confirmation
 	if !reinstallYesFlag {
+		access := "A new root password will be issued."
+		if sshKeyID > 0 {
+			access = "You can connect with the selected SSH key."
+		}
 		warning := fmt.Sprintf(
-			"Reinstall %s (%s) with %s?\n  All data will be erased and a new root password will be issued.",
-			instance.Hostname, instance.MainIP, selectedTemplate.Name,
+			"Reinstall %s (%s) with %s?\n  All data will be erased. %s",
+			instance.Hostname, instance.MainIP, selectedTemplate.Name, access,
 		)
 		confirmed := false
 		err := huh.NewConfirm().
@@ -145,9 +149,9 @@ func displayReinstallResult(r *api.ReinstallResponse, instance *api.Instance) {
 		sshUser = "root"
 	}
 
-	password := r.RootPW
-	if password == "" {
-		password = "(check email)"
+	access := "Access:          Use the selected SSH key."
+	if r.RootPW != "" {
+		access = "Root Password:  " + r.RootPW
 	}
 
 	cardContent := fmt.Sprintf(`OS Reinstalled Successfully!
@@ -155,13 +159,13 @@ func displayReinstallResult(r *api.ReinstallResponse, instance *api.Instance) {
 Hostname:       %s
 IP Address:     %s
 OS:             %s
-Root Password:  %s
+%s
 
 SSH:            ssh %s@%s`,
 		instance.Hostname,
 		instance.MainIP,
 		r.Instance.Template.Name,
-		password,
+		access,
 		sshUser,
 		instance.MainIP,
 	)
